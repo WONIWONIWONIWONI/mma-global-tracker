@@ -47,7 +47,7 @@ async function paint(doc, height, bg) {
 }
 
 function header(doc, c, m) {
-  doc.text(PAD, 48, m.title, { size: 28, weight: 700, family: "disp", color: c.ink, maxW: W - PAD * 2 - (m.sample ? 110 : 0) });
+  doc.text(PAD, 48, m.title, { size: 28, weight: 600, family: "disp", color: c.ink, maxW: W - PAD * 2 - (m.sample ? 110 : 0) });
   doc.text(PAD, 72, m.sub, { size: 13, color: c.muted, maxW: W - PAD * 2 });
   if (m.sample) { doc.rect(W - PAD - 96, 28, 96, 24, c.sunk, 5); doc.text(W - PAD - 48, 45, "예시 데이터", { size: 12, weight: 600, color: c.ink, align: "center" }); }
   return 92;
@@ -92,13 +92,13 @@ export async function rankImage(m) {
   let y = header(doc, c, m) + 6;
   const chg = d => d == null ? { s: "–", color: c.muted } : d > 0 ? { s: "▲" + d, color: c.up, size: 12 } : d < 0 ? { s: "▼" + -d, color: c.down, size: 12 } : { s: "–", color: c.muted };
   y = drawTable(doc, c, y, [
-    { label: "순위", x: 58, align: "right", get: r => ({ s: r.rank, family: "disp", weight: 700, size: 18 }) },
+    { label: "순위", x: 58, align: "right", get: r => ({ s: r.rank ?? "–", family: "disp", weight: 600, size: 18 }) },
     { label: "변동", x: 70, get: r => chg(r.change) },
-    { label: "후보", x: 112, w: 170, get: r => ({ s: r.name, family: "body", weight: 600 }) },
-    { label: "음원", x: 360, align: "right", get: r => f2(r.chart) },
+    { label: "후보", x: 112, w: 170, get: r => ({ s: r.name, family: "body", weight: 500 }) },
+    { label: m.chartLabel || "음원", x: 360, align: "right", get: r => f2(r.chart) },
     { label: "멜론", x: 440, align: "right", get: r => ({ s: f2(r.ms), color: c.melon }) },
     { label: "베리즈", x: 520, align: "right", get: r => ({ s: f2(r.bs), color: c.berriz }) },
-    { label: "합산", x: 620, align: "right", get: r => ({ s: f2(r.total), weight: 600 }) },
+    { label: "합산", x: 620, align: "right", get: r => ({ s: f2(r.total), weight: 500 }) },
     { label: "앞 순위와", x: W - PAD - 8, align: "right", get: r => r.gap == null ? { s: "선두", color: c.muted, family: "body" } : { s: "−" + f2(r.gap), color: c.muted } }
   ], m.rows, { cutoff: m.cutoff });
   y = footer(doc, c, y + 18, m.note);
@@ -113,9 +113,9 @@ export async function siteImage(m) {
   doc.rect(PAD, y - 4, 40, 4, sc);
   y += 8;
   y = drawTable(doc, c, y, [
-    { label: "순위", x: 58, align: "right", get: r => ({ s: r.rank, family: "disp", weight: 700, size: 18 }) },
-    { label: "후보", x: 76, w: 170, get: r => ({ s: r.name, family: "body", weight: 600 }) },
-    { label: "득표수", x: 380, align: "right", get: r => ({ s: fmt(r.votes), weight: 600 }) },
+    { label: "순위", x: 58, align: "right", get: r => ({ s: r.rank, family: "disp", weight: 600, size: 18 }) },
+    { label: "후보", x: 76, w: 170, get: r => ({ s: r.name, family: "body", weight: 500 }) },
+    { label: "득표수", x: 380, align: "right", get: r => ({ s: fmt(r.votes), weight: 500 }) },
     { label: "점유율", x: 460, align: "right", get: r => r.share.toFixed(2) + "%" },
     { label: "앞 순위와", x: 560, align: "right", get: r => r.gap == null ? { s: "—", color: c.muted } : { s: "−" + fmt(r.gap), color: c.muted } },
     { label: "1시간", x: 650, align: "right", get: r => ({ s: signed(r.h1), color: sc }) },
@@ -178,9 +178,9 @@ export function rankHTML(m) {
   const chg = d => d == null || d === 0 ? `<font color="${L.muted}">–</font>` : d > 0 ? `<font color="${L.up}">▲${d}</font>` : `<font color="${L.down}">▼${-d}</font>`;
   const body = m.rows.map((r, i) => {
     const bg = r.pin ? ` bgcolor="${L.pin}" style="background:${L.pin};"` : "", cut = m.cutoff && i === m.cutoff ? `border-top:2px solid ${L.ink};` : "";
-    return `<tr${bg}>${td("<b>" + r.rank + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${td(f2(r.chart), "right", cut)}${td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut)}${td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap == null ? "선두" : "−" + f2(r.gap), "right", cut + `color:${L.muted};`)}</tr>`;
+    return `<tr${bg}>${td("<b>" + (r.rank ?? "–") + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${td(f2(r.chart), "right", cut)}${td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut)}${td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap == null ? "선두" : "−" + f2(r.gap), "right", cut + `color:${L.muted};`)}</tr>`;
   }).join("");
-  return htmlBlock(m, th("순위", "right") + th("변동") + th("후보") + th("음원", "right") + th("멜론", "right") + th("베리즈", "right") + th("합산", "right") + th("앞 순위와", "right"), body);
+  return htmlBlock(m, th("순위", "right") + th("변동") + th("후보") + th(esc(m.chartLabel || "음원"), "right") + th("멜론", "right") + th("베리즈", "right") + th("합산", "right") + th("앞 순위와", "right"), body);
 }
 export function siteHTML(m) {
   const sc = L[m.site] || L.ink;

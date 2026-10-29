@@ -17,6 +17,7 @@
 import * as melon from "./adapters/melon.js";
 import * as berriz from "./adapters/berriz.js";
 import { MIN, HOUR, KST_OFFSET } from "../site/core/time.js";
+import { VOTE } from "../site/core/config.js";
 
 const ADAPTERS = { melon, berriz };
 const SAMPLE = Object.values(ADAPTERS).some(a => a.SAMPLE);
@@ -133,7 +134,9 @@ async function respond(env, now, keys, withDays) {
 export default {
   async scheduled(event, env, ctx) {
     const at = Math.round(event.scheduledTime / MIN) * MIN;
-    ctx.waitUntil(collect(env, at));
+    // 실제 수집은 투표 기간(시작 10분 전 ~ 종료 30분 뒤)에만 한다. 가짜 데이터는 시험용이라 계속 만든다.
+    const inVote = at >= Date.parse(VOTE.start) - 10 * MIN && at <= Date.parse(VOTE.end) + 30 * MIN;
+    if (SAMPLE || inVote) ctx.waitUntil(collect(env, at));
     if (env.CF_API_TOKEN && env.CF_ACCOUNT_ID && at % (5 * MIN) === 2 * MIN) ctx.waitUntil(checkUsage(env, at));
   },
 

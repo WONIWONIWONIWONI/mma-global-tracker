@@ -29,6 +29,14 @@ def database_id() -> str:
     return m.group(1)
 
 
+def vote_start() -> dt.date:
+    """site/core/config.js 의 VOTE.start 날짜. 이 날 이전(시험용 가짜 데이터)은 백업하지 않는다."""
+    m = re.search(r'start:\s*"(\d{4}-\d{2}-\d{2})', (ROOT / "site" / "core" / "config.js").read_text(encoding="utf-8"))
+    if not m:
+        sys.exit("config.js에서 VOTE.start를 찾지 못했습니다")
+    return dt.date.fromisoformat(m.group(1))
+
+
 def query(sql: str, params=()):
     account, token = os.environ.get("CF_ACCOUNT_ID"), os.environ.get("CF_API_TOKEN")
     if not account or not token:
@@ -50,7 +58,7 @@ def main() -> None:
         print("관측이 아직 없습니다")
         return
     now = dt.datetime.now(KST)
-    first = dt.datetime.fromtimestamp(span["a"] / 1000, KST).date()
+    first = max(dt.datetime.fromtimestamp(span["a"] / 1000, KST).date(), vote_start())
     print(f"D1 관측 {span['n']}개 · {first} 부터")
     OUT.mkdir(exist_ok=True)
     written = 0

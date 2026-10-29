@@ -66,9 +66,14 @@ const openState = {};
 const nameOf = k => esc(CANDS[k] ? CANDS[k].name : "?");
 const muted = s => `<span class="muted">${s}</span>`;
 
+// 후보 고르기 버튼. 후보가 많으면 상위 12팀과 선택한 팀만 보이고 "전체 보기"로 펼친다.
+const CHIP_LIMIT = 12, chipsOpen = new Set();
 function chipsHTML(order, sel, act) {
-  const s = [...sel];
-  return order.map(k => { const n = s.indexOf(k); return `<button type="button" class="chip" data-chip="${act}" data-k="${k}" aria-pressed="${n >= 0}" style="--c:${n >= 0 ? PALETTE[n % PALETTE.length] : "var(--line)"}">${nameOf(k)}</button>`; }).join("");
+  const s = [...sel], all = chipsOpen.has(act) || order.length <= CHIP_LIMIT + 2;
+  const shown = all ? order : order.filter((k, i) => i < CHIP_LIMIT || sel.has(k));
+  const btn = k => { const n = s.indexOf(k); return `<button type="button" class="chip" data-chip="${act}" data-k="${k}" aria-pressed="${n >= 0}" style="--c:${n >= 0 ? PALETTE[n % PALETTE.length] : "var(--line)"}">${nameOf(k)}</button>`; };
+  const more = order.length <= CHIP_LIMIT + 2 ? "" : `<button type="button" class="chip more" data-more="${act}">${all ? "접기" : `전체 ${order.length}팀 보기`}</button>`;
+  return shown.map(btn).join("") + more;
 }
 function needHTML(n) {
   if (!n) return "—";
@@ -107,37 +112,57 @@ function renderGlobal() {
   let cards = "", table = "";
   if (R) {
     const pin = R.find(r => r.k === G.pin);
-    const pinNote = pin.rank <= CUT
+    const pinNote = pin.rank == null ? "음원 점수 미확인 · 합산 순위 없음" : pin.rank <= CUT
       ? (pin.rank === 1 ? "선두" : `${pin.rank - 1}위와 ${f2(R[pin.rank - 2].total - pin.total)}점 차`) + ` · 11위와 ${f2(pin.total - R[CUT].total)}점 차`
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     cards = `<div class="cards">
       <div class="card"><span class="k">1위 (잠정)</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${f2(R[0].total - R[1].total)}점 앞섬</span></div>
       <div class="card"><span class="k">TOP10 컷</span><span class="n">10위 ${esc(R[CUT - 1].name)} · 11위 ${esc(R[CUT].name)}</span><span class="v">${f2(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span><span class="s">10위 ${f2(R[CUT - 1].total)}점 · 11위 ${f2(R[CUT].total)}점</span></div>
-      <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)} · ${pin.rank}위</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
+      <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
         <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
     </div>`;
 
-    let rows = "";
+    // 넓은 화면은 표, 좁은 화면(휴대폰)은 한 줄 요약 목록(누르면 득표수·역전 필요 표가 펼쳐짐)을 보여 준다
+    const est = RULES.chartEstimated ? "(예측)" : "";
+    const votes = x => x == null ? "관측 없음" : fmt(x) + "표";
+    const UNRANKED = "음원 점수 미확인 · 합산 순위 없음";
+    let rows = "", mrows = "";
     R.forEach((r, i) => {
-      let ch = muted("–");
-      if (prevRanks && prevRanks[r.id] != null) { const d = prevRanks[r.id] - r.rank; if (d > 0) ch = `<span class="up">▲${d}</span>`; else if (d < 0) ch = `<span class="down">▼${-d}</span>`; }
-      const votes = x => x == null ? "관측 없음" : fmt(x) + "표";
+      let ch = r.rank == null ? "" : muted("–");
+      if (prevRanks && prevRanks[r.id] != null && r.rank != null) { const d = prevRanks[r.id] - r.rank; if (d > 0) ch = `<span class="up">▲${d}</span>`; else if (d < 0) ch = `<span class="down">▼${-d}</span>`; }
+      if (r.rank == null && (i === 0 || R[i - 1].rank != null)) {
+        rows += `<tr class="sep"><td colspan="10">${UNRANKED}</td></tr>`;
+        mrows += `<li class="sep">${UNRANKED}</li>`;
+      }
+      const gapTxt = r.gapAhead != null ? "−" + f2(r.gapAhead) : r.rank === 1 ? "선두" : "";
       rows += `<tr class="${r.k === G.pin ? "pin" : ""}">
-        <td class="r">${r.rank}</td><td class="ch">${ch}</td><td class="nm">${esc(r.name)}</td>
+        <td class="r">${r.rank ?? muted("–")}</td><td class="ch">${ch}</td><td class="nm">${esc(r.name)}</td>
         <td class="num">${f2(r.chart)}</td>
         <td class="num">${f2(r.ms)}<span class="sub">${votes(r.mv)}</span></td>
         <td class="num">${f2(r.bs)}<span class="sub">${votes(r.bv)}</span></td>
-        <td><div class="tot"><span class="stack" aria-hidden="true"><i style="width:${r.chart / MAXT * 100}%;background:var(--base)"></i><i style="width:${r.ms / MAXT * 100}%;background:var(--melon)"></i><i style="width:${r.bs / MAXT * 100}%;background:var(--berriz)"></i></span><b>${f2(r.total)}</b></div></td>
-        <td class="num">${i ? "−" + f2(r.gapAhead) : muted("선두")}</td>
-        <td class="num">${i ? needHTML(r.needMelon) : "—"}</td>
-        <td class="num">${i ? needHTML(r.needBerriz) : "—"}</td></tr>`;
-      if (r.rank === CUT) rows += `<tr class="cut" aria-hidden="true"><td colspan="10"><span>TOP 10</span></td></tr>`;
+        <td><div class="tot"><span class="stack" aria-hidden="true"><i style="width:${(r.chart || 0) / MAXT * 100}%;background:var(--base)"></i><i style="width:${r.ms / MAXT * 100}%;background:var(--melon)"></i><i style="width:${r.bs / MAXT * 100}%;background:var(--berriz)"></i></span><b>${f2(r.total)}</b></div></td>
+        <td class="num">${r.gapAhead != null ? gapTxt : muted(gapTxt || "—")}</td>
+        <td class="num">${needHTML(r.needMelon)}</td>
+        <td class="num">${needHTML(r.needBerriz)}</td></tr>`;
+      const oid = "rm-" + r.id;
+      mrows += `<li class="${r.k === G.pin ? "pin" : ""}"><details id="${oid}"${openState[oid] ? " open" : ""}><summary>
+        <span class="r">${r.rank ?? "–"}</span><span class="ch">${ch}</span>
+        <span class="nm">${esc(r.name)}<small>${f2(r.chart)} + <em class="mc">${f2(r.ms)}</em> + <em class="bc">${f2(r.bs)}</em></small></span>
+        <span class="tt"><b class="num">${f2(r.total)}</b><small class="num">${gapTxt}</small></span></summary>
+        <div class="more"><div>멜론 ${votes(r.mv)} · 베리즈 ${votes(r.bv)}</div>
+          ${r.gapAhead != null ? `<div>앞 순위를 넘으려면 · 멜론만 ${needHTML(r.needMelon)} · 베리즈만 ${needHTML(r.needBerriz)}</div>` : ""}</div></details></li>`;
+      if (r.rank === CUT) {
+        rows += `<tr class="cut" aria-hidden="true"><td colspan="10"><span>TOP 10</span></td></tr>`;
+        mrows += `<li class="cut" aria-hidden="true"><span>TOP 10</span></li>`;
+      }
     });
-    table = `<div class="tscroll"><table class="rank">
-      <thead><tr><th>순위</th><th>변동</th><th>후보</th><th>음원</th><th>멜론</th><th>베리즈</th><th>합산</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
+    table = `<div class="tscroll rank-wide"><table class="rank">
+      <thead><tr><th>순위</th><th>변동</th><th>후보</th><th>음원${est}</th><th>멜론</th><th>베리즈</th><th>합산</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-      <div class="legend"><span><i style="background:var(--base)"></i>음원 점수(고정)</span><span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span></div>`;
+      <ol class="rank-m">${mrows}</ol>
+      <p class="hint-m">작은 숫자는 음원${est} + <em class="mc">멜론</em> + <em class="bc">베리즈</em> 점수입니다. 줄을 누르면 득표수와 역전에 필요한 표가 보입니다.</p>
+      <div class="legend"><span><i style="background:var(--base)"></i>음원 점수${est || "(고정)"}</span><span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span></div>`;
   } else table = `<p class="hold">${hold}</p>`;
 
   const snapOpts = snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("");
@@ -146,7 +171,7 @@ function renderGlobal() {
     <div class="phead"><div><h2>${G.snap === "live" ? "실시간 잠정 순위" : mdK(G.snap - 1) + " 마감 순위"}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
       <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
-    <p class="note">심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다. 투표 점수는 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
+    <p class="note">${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다. 투표 점수는 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>점수 추이</h2><p>10분 간격 관측으로 다시 계산한 합산 점수</p></div>
@@ -162,8 +187,9 @@ function renderGlobal() {
   const T = P.trend, lastT = T.t[T.t.length - 1], from = G.range === "24h" ? lastT - DAY : -Infinity;
   const keep = T.t.map((t, i) => t >= from ? i : -1).filter(i => i >= 0);
   let series;
-  if (G.trend === "total") series = [...G.sel].map((k, n) => ({ name: nameOf(k), color: PALETTE[n % PALETTE.length], w: k === G.pin ? 2.4 : 1.6, pts: keep.map(i => [T.t[i], T.totals[k][i]]) }));
-  else { const arr = G.trend === "g12" ? T.g12 : T.gcut; series = [{ name: G.trend === "g12" ? "1·2위 점수차" : "10·11위 점수차", color: "var(--ink)", w: 2, pts: keep.map(i => [T.t[i], arr[i]]) }]; }
+  const valid = p => p[1] != null;
+  if (G.trend === "total") series = [...G.sel].map((k, n) => ({ name: nameOf(k), color: PALETTE[n % PALETTE.length], w: k === G.pin ? 2.4 : 1.6, pts: keep.map(i => [T.t[i], T.totals[k][i]]).filter(valid) }));
+  else { const arr = G.trend === "g12" ? T.g12 : T.gcut; series = [{ name: G.trend === "g12" ? "1·2위 점수차" : "10·11위 점수차", color: "var(--ink)", w: 2, pts: keep.map(i => [T.t[i], arr[i]]).filter(valid) }]; }
   drawLine($("#g-chart"), { series, yFmt: x => x.toFixed(G.trend === "total" ? 0 : 1), tipFmt: x => x.toFixed(2) + "점" });
 }
 
@@ -212,7 +238,7 @@ function renderSite(key) {
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
   const card = (k, r) => `<div class="card"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
 
-  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num">${r ? "−" + fmt(vals[order[r - 1]] - vals[k]) : "—"}</td><td class="num">${signed(diff(h1, k))}</td><td class="num">${f2(s.scores[k])}</td></tr>`).join("");
+  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num hide-m">${r ? "−" + fmt(vals[order[r - 1]] - vals[k]) : "—"}</td><td class="num">${signed(diff(h1, k))}</td><td class="num hide-m">${f2(s.scores[k])}</td></tr>`).join("");
 
   // 구간 [a, b) 증가량. 관측이 없는 구간은 null(0으로 채우지 않음)
   const incr = (k, a, b) => {
@@ -221,19 +247,23 @@ function renderSite(key) {
     return x == null || y == null ? null : x - y;
   };
 
-  /* 시간대별 */
-  const cols = [...new Set([...order.slice(0, 6), G.pin])];
+  /* 시간대별 · 날짜별 표: 넓은 화면은 상위 6팀 + 관심 후보, 휴대폰은 1·2위 + 관심 후보만 */
+  const narrow = matchMedia("(max-width: 640px)").matches;
+  const cols = [...new Set([...order.slice(0, narrow ? 2 : 6), G.pin])];
+  const colsNote = narrow ? "1·2위와 관심 후보" : "상위 6팀과 관심 후보";
+  const big = x => x == null ? "—" : narrow && Math.abs(x) >= 1e5 ? man(x) : fmt(x);
   const D = S.hDate;
   let hmax = 1; const hrs = [];
   for (let h = 0; h < 24; h++) { const a = D + h * HOUR, b = a + HOUR, row = cols.map(k => incr(k, a, b)); row.forEach(x => { if (x != null && x > hmax) hmax = x; }); hrs.push({ h, a, b, row }); }
-  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur ? " · 진행 중" : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${fmt(x)}</td>`).join("")}</tr>`; }).join("");
+  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur && !narrow ? " · 진행 중" : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${big(x)}</td>`).join("")}</tr>`; }).join("");
 
   /* 일별 */
   const dayInc = d => CANDS.map(c => incr(c.k, d, d + DAY));
   const dd = dayInc(S.dDate), dOrder = CANDS.map(c => c.k).filter(k => dd[k] != null).sort((a, b) => dd[b] - dd[a]);
   const dShow = [...new Set([...dOrder.slice(0, 10), G.pin])].filter(k => dd[k] != null), dMax = Math.max(1, ...dShow.map(k => dd[k]));
   const dayState = d => d < start && d + DAY > start ? "첫날 · " + hm(start) + " 시작" : d + DAY > now ? "진행 중 · " + hm(now) + "까지" : "마감";
-  const dayTable = ds.slice().reverse().map(d => { const r = dayInc(d); return `<tr><td>${mdK(d)}<span class="muted"> · ${dayState(d)}</span></td>${cols.map(k => `<td class="num">${fmt(r[k])}</td>`).join("")}<td class="num">${fmt(sum(r))}</td></tr>`; }).join("");
+  const dayShort = d => d < start && d + DAY > start ? "첫날" : d + DAY > now ? "진행 중" : "마감";
+  const dayTable = ds.slice().reverse().map(d => { const r = dayInc(d); return `<tr><td>${narrow ? `${md(d)}<small class="muted dl">${dayShort(d)}</small>` : `${mdK(d)}<span class="muted"> · ${dayState(d)}</span>`}</td>${cols.map(k => `<td class="num">${big(r[k])}</td>`).join("")}<td class="num">${big(sum(r))}</td></tr>`; }).join("");
   const dateOpts = sel => ds.slice().reverse().map(d => `<option value="${d}"${d === sel ? " selected" : ""}>${mdK(d)}</option>`).join("");
   const candOpts = sel => order.map(k => `<option value="${k}"${k === sel ? " selected" : ""}>${nameOf(k)}</option>`).join("");
 
@@ -249,7 +279,7 @@ function renderSite(key) {
   <div class="panel">
     <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div><div class="ctrl">${shareBtn(key + "-list")}</div></div>
     <details id="${key}-list"${listOpen}><summary>${CANDS.length}팀 전체 보기</summary>
-    <div class="tscroll"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
+    <div class="tscroll"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th class="hide-m">앞 순위와</th><th>1시간</th><th class="hide-m">점수</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>득표 추이</h2><p>${S.mode === "votes" ? "누적 득표수" : "전체 득표 대비 점유율"} · 1분 관측</p></div>
@@ -273,7 +303,7 @@ function renderSite(key) {
   </div>
   <div class="two">
     <div class="panel">
-      <div class="phead"><div><h2>시간대별 증가량</h2><p>상위 6팀과 관심 후보 · KST</p></div><div class="ctrl"><select id="${key}-hd" aria-label="날짜">${dateOpts(S.hDate)}</select></div></div>
+      <div class="phead"><div><h2>시간대별 증가량</h2><p>${colsNote} · KST</p></div><div class="ctrl"><select id="${key}-hd" aria-label="날짜">${dateOpts(S.hDate)}</select></div></div>
       <div class="tscroll"><table class="heat"><thead><tr><th>시간</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}</tr></thead><tbody>${heatRows || '<tr><td colspan="9">관측 없음</td></tr>'}</tbody></table></div>
     </div>
     <div class="panel">
@@ -282,7 +312,7 @@ function renderSite(key) {
     </div>
   </div>
   <div class="panel">
-    <div class="phead"><div><h2>날짜별 마감 기록</h2><p>각 날짜 00시부터 다음 날 00시까지의 증가량</p></div></div>
+    <div class="phead"><div><h2>날짜별 마감 기록</h2><p>${colsNote} · 각 날짜 00시부터 다음 날 00시까지의 증가량</p></div></div>
     <div class="tscroll"><table class="heat"><thead><tr><th>날짜</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}<th>전체</th></tr></thead><tbody>${dayTable}</tbody></table></div>
   </div>`;
 
@@ -303,7 +333,7 @@ function renderSite(key) {
 const shareBtn = kind => `<button type="button" class="btn sbtn" data-share="${kind}">이미지 공유</button>`;
 const stampOf = ts => `${mdK(ts)} ${hm(ts)}`;
 const fileStamp = ts => { const d = kd(ts); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + "-" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()); };
-const rankNote = () => `비공식 트래커 · 심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`;
+const rankNote = () => `비공식 트래커 · ${RULES.chartEstimated ? "음원 점수 예측값 · " : ""}심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`;
 const IV_LABEL = { "5m": "5분봉", "30m": "30분봉", "1h": "1시간봉", "1d": "일봉" };
 
 // kind: g-rank, g-trend, <site>-list, <site>-line, <site>-candle. 지금 화면에 보이는 선택(날짜·후보·구간)을 그대로 쓴다.
@@ -314,7 +344,7 @@ async function makeShare(kind) {
     const live = G.snap === "live", ts = live ? Math.max(P.live.melonAt, P.live.berrizAt) : G.snap;
     const m = {
       title: live ? "MMA 2026 글로벌 TOP10 잠정 순위" : `MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`,
-      sub: when, sample: P.sample, cutoff: RULES.cutoff, note: rankNote(),
+      sub: when, sample: P.sample, cutoff: RULES.cutoff, note: rankNote(), chartLabel: RULES.chartEstimated ? "음원(예측)" : "음원",
       rows: R.map(r => ({ rank: r.rank, change: prevRanks && prevRanks[r.id] != null ? prevRanks[r.id] - r.rank : null, name: r.name,
         chart: r.chart, ms: r.ms, bs: r.bs, total: r.total, gap: r.gapAhead, pin: r.k === G.pin }))
     };
@@ -354,6 +384,18 @@ async function makeShare(kind) {
 }
 
 /* ───────── 상태줄 · 렌더 · 이벤트 ───────── */
+// 투표 기간 안내: 시작 전 / 마감까지 남은 시간 / 종료
+function voteStatus(now) {
+  const v = P.config.vote; if (!v) return "";
+  const s = Date.parse(v.start), e = Date.parse(v.end);
+  if (now < s) return `<span>투표 시작 전 · <b class="num">${md(s)} ${hm(s)}</b> 시작</span>`;
+  if (now >= e) return "<span><b>투표 종료</b></span>";
+  const left = e - now, d = Math.floor(left / DAY), h = Math.floor(left % DAY / HOUR), mi = Math.floor(left % HOUR / MIN);
+  return `<span>마감까지 <b class="num">${d ? d + "일 " + h + "시간" : h ? h + "시간 " + mi + "분" : mi + "분"}</b></span>`;
+}
+
+// 상태줄: 매초 바뀌는 건 남은 초(#cd)뿐이라 그 숫자만 고친다. 나머지가 바뀔 때만 다시 그려 화면이 들썩이지 않게 한다.
+let statusHTML = "";
 function renderStatus() {
   const el = $("#status");
   if (!P) { el.textContent = loadError ? "데이터를 불러오지 못했습니다" : "불러오는 중…"; return; }
@@ -362,15 +404,19 @@ function renderStatus() {
     ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
     : '<b class="warn">관측 없음</b>';
   const ok = !loadError && !m.stale && !b.stale;
-  el.innerHTML = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
+  const html = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
     <span>멜론 ${site(m)}</span><span>베리즈 ${site(b)}</span>
-    ${P.live ? `<span>사이트 간 시각차 <b class="num">${Math.round(P.live.skewMs / 1000)}초</b></span>` : ""}
+    ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${Math.round(P.live.skewMs / 1000)}초</b></span>` : ""}
     ${paused
       ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
-      : `<span>다음 갱신 <b class="num">${Math.max(0, Math.ceil((nextFetch - now) / 1000))}초</b></span>`}
+      : '<span>다음 갱신 <b class="num cd" id="cd"></b></span>'}
+    ${voteStatus(now)}
     ${refreshMs > REFRESH_MS ? `<span class="warn">접속이 많아 ${refreshMs % 60e3 ? refreshMs / 1000 + "초" : refreshMs / 60e3 + "분"} 간격으로 갱신 중</span>` : ""}
     ${loadError ? '<span class="warn">최근 갱신 실패 · 이전 값 표시 중</span>' : ""}
     ${P.sample ? '<span class="sample">예시 데이터 · 투표 주소 공개 전 화면</span>' : ""}`;
+  if (html !== statusHTML) { el.innerHTML = html; statusHTML = html; }
+  const cd = el.querySelector("#cd");
+  if (cd) cd.textContent = Math.max(0, Math.ceil((nextFetch - now) / 1000)) + "초";
 }
 function render() { if (P) { if (VIEW === "global") renderGlobal(); else renderSite(VIEW); } }
 function show(view) {
@@ -385,6 +431,7 @@ window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 document.querySelector("main").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.share) { const kind = b.dataset.share; openShare(() => makeShare(kind)); return; }
+  if (b.dataset.more) { const a = b.dataset.more; chipsOpen.has(a) ? chipsOpen.delete(a) : chipsOpen.add(a); render(); return; }
   if (b.dataset.g) { G[b.dataset.g] = b.dataset.v; renderGlobal(); return; }
   if (b.dataset.s) { ST[b.dataset.s][b.dataset.f] = b.dataset.v; renderSite(b.dataset.s); return; }
   if (b.dataset.chip) {

@@ -11,6 +11,8 @@ const SETUP = {
 function rng(seed) {
   return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
+// 후보가 rates 목록보다 많으면(예: 30팀) 앞쪽 값을 돌려 쓰되 조금 낮춘다
+const rateOf = (cfg, k) => k < cfg.rates.length ? cfg.rates[k] : cfg.rates[k % cfg.rates.length] * 0.6;
 // 밤 10시 무렵 투표가 몰리고 새벽에 줄어드는 하루 흐름
 const diurnal = ts => { const h = ((ts + KST_OFFSET) / HOUR) % 24; return 0.35 + 0.65 * (0.5 + 0.5 * Math.cos((h - 22) / 24 * 2 * Math.PI)); };
 
@@ -25,7 +27,7 @@ export function fakeNext(source, prev, now) {
   CANDIDATES.forEach((c, k) => {
     const base = prev && typeof prev.candidates[c.id] === "number" ? prev.candidates[c.id] : 0;
     const drift = 1 + 0.22 * Math.sin(minute / (240 + k * 31) + cfg.seed + k);
-    const v = base + Math.round(cfg.rates[k] * diurnal(now) * drift * (0.75 + 0.5 * hash(minute * 977 + k * 131 + cfg.seed)) * mins);
+    const v = base + Math.round(rateOf(cfg, k) * diurnal(now) * drift * (0.75 + 0.5 * hash(minute * 977 + k * 131 + cfg.seed)) * mins);
     candidates[c.id] = v; total += v;
   });
   return { observedAt: now, sourceAt: null, totalVotes: total, candidates };
@@ -45,7 +47,7 @@ function step(s) {
   for (let k = 0; k < CANDIDATES.length; k++) {
     if (s.burst[k] > 0) s.burst[k]--; else if (s.r() < 0.0006) s.burst[k] = 15 + Math.floor(s.r() * 30);
     const drift = 1 + 0.22 * Math.sin(s.i / (240 + k * 31) + s.phase[k]);
-    s.cum[k] += Math.round(s.rates[k] * di * drift * (s.burst[k] > 0 ? 2.6 : 1) * (0.75 + 0.5 * s.r()));
+    s.cum[k] += Math.round(rateOf(s, k) * di * drift * (s.burst[k] > 0 ? 2.6 : 1) * (0.75 + 0.5 * s.r()));
   }
   record(s);
 }

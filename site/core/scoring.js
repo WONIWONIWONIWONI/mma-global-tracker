@@ -18,19 +18,20 @@ export function votesNeeded(gap, votes, max, score) {
   return { type: "votes", n: Math.floor(gap * max / RULES.siteMax) + 1 };
 }
 
+// 음원 점수를 모르는 후보(chart: null)는 합산할 수 없으므로 순위(rank)를 매기지 않고 맨 아래에 투표 점수 순으로 둔다.
 export function standings(melonVotes, berrizVotes) {
   const m = siteScores(melonVotes), b = siteScores(berrizVotes);
   const rows = CANDIDATES.map((c, k) => ({
     id: c.id, name: c.name, chart: c.chart,
     mv: melonVotes[k], bv: berrizVotes[k], ms: m.scores[k], bs: b.scores[k],
-    total: c.chart + m.scores[k] + b.scores[k]
-  })).sort((x, y) => y.total - x.total || y.chart - x.chart);
+    total: c.chart == null ? null : c.chart + m.scores[k] + b.scores[k]
+  })).sort((x, y) => (x.total == null) - (y.total == null) || (y.total ?? 0) - (x.total ?? 0) || (y.chart ?? 0) - (x.chart ?? 0) || (y.ms + y.bs) - (x.ms + x.bs));
   rows.forEach((r, i) => {
-    r.rank = i + 1;
-    const ahead = rows[i - 1];
-    r.gapAhead = ahead ? ahead.total - r.total : null;
-    r.needMelon = ahead ? votesNeeded(r.gapAhead, r.mv, m.max, r.ms) : null;
-    r.needBerriz = ahead ? votesNeeded(r.gapAhead, r.bv, b.max, r.bs) : null;
+    const ahead = rows[i - 1], ranked = r.total != null;
+    r.rank = ranked ? i + 1 : null;
+    r.gapAhead = ranked && ahead ? ahead.total - r.total : null;
+    r.needMelon = r.gapAhead != null ? votesNeeded(r.gapAhead, r.mv, m.max, r.ms) : null;
+    r.needBerriz = r.gapAhead != null ? votesNeeded(r.gapAhead, r.bv, b.max, r.bs) : null;
   });
   return { rows, melonMax: m.max, berrizMax: b.max };
 }

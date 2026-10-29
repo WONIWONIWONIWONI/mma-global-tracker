@@ -1,6 +1,6 @@
 // API 응답 만들기. 점수 계산은 여기서 한 번만 하고 화면은 결과를 그리기만 한다.
 // 입력: 사이트별 관측 배열(시각순). Worker는 D1에서 읽은 관측을, 가짜 모드는 생성한 관측을 넣는다.
-import { CANDIDATES, SITES, RULES, COLLECT, PIN_DEFAULT } from "./config.js";
+import { CANDIDATES, SITES, RULES, COLLECT, PIN_DEFAULT, VOTE } from "./config.js";
 import { standings, siteScores } from "./scoring.js";
 import { voteVector, votesAsOf, buildSeries } from "./history.js";
 import { MIN, DAY, kstMidnight } from "./time.js";
@@ -62,9 +62,10 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
   const trend = { t: [], totals: CANDIDATES.map(() => []), g12: [], gcut: [] };
   const addTrend = (t, st) => {
     trend.t.push(t);
-    for (const r of st.rows) trend.totals[IDS.indexOf(r.id)].push(round3(r.total));
-    trend.g12.push(round3(st.rows[0].total - st.rows[1].total));
-    trend.gcut.push(round3(st.rows[RULES.cutoff - 1].total - st.rows[RULES.cutoff].total));
+    for (const r of st.rows) trend.totals[IDS.indexOf(r.id)].push(r.total == null ? null : round3(r.total));
+    const gap = (a, b) => a && b && a.total != null && b.total != null ? round3(a.total - b.total) : null;
+    trend.g12.push(gap(st.rows[0], st.rows[1]));
+    trend.gcut.push(gap(st.rows[RULES.cutoff - 1], st.rows[RULES.cutoff]));
   };
   if (live) {   // 합산 보류 중에도 두 사이트가 모두 있던 지난 구간은 보여 준다
     const STEP = 10 * MIN, end = Math.min(live.melonAt, live.berrizAt);
@@ -74,7 +75,7 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
 
   return {
     generatedAt: now, sample, start,
-    config: { candidates: CANDIDATES.map(({ id, name, chart }) => ({ id, name, chart })), rules: RULES, collect: COLLECT, pinDefault: PIN_DEFAULT },
+    config: { candidates: CANDIDATES.map(({ id, name, chart }) => ({ id, name, chart })), rules: RULES, collect: COLLECT, pinDefault: PIN_DEFAULT, vote: VOTE },
     sites, live, snapshots, trend
   };
 }
