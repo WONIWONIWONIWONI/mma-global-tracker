@@ -6,7 +6,8 @@ import { drawLine, drawCandles } from "./charts.js";
 import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
 
 const $ = s => document.querySelector(s);
-const PALETTE = ["#e0542c", "#2d7ad6", "#159f6c", "#9a57cf", "#e09b00", "#0e9fae", "#d1336b", "#7a6a55"];
+// 차트 선 색은 테마(일반/다크)마다 style.css 의 --c1~--c8 에서 정한다
+const PALETTE = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)", "var(--c8)"];
 const VIEWS = ["global", "melon", "berriz"];
 
 /* ───────── 데이터 ───────── */
@@ -259,10 +260,11 @@ function renderSite(key) {
   const cols = [...new Set([...order.slice(0, topN), G.pin])];
   const colsNote = narrow ? "1·2위와 관심 후보" : `상위 ${topN}팀과 관심 후보`;
   const big = x => x == null ? "—" : narrow && Math.abs(x) >= 1e5 ? man(x) : fmt(x);
+  const heatK = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--heat")) || 42;
   const D = S.hDate;
   let hmax = 1; const hrs = [];
   for (let h = 0; h < 24; h++) { const a = D + h * HOUR, b = a + HOUR, row = cols.map(k => incr(k, a, b)); row.forEach(x => { if (x != null && x > hmax) hmax = x; }); hrs.push({ h, a, b, row }); }
-  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur ? '<small class="muted dl">진행 중</small>' : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${big(x)}</td>`).join("")}</tr>`; }).join("");
+  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur ? '<small class="muted dl">진행 중</small>' : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * heatK)}%,transparent)">${big(x)}</td>`).join("")}</tr>`; }).join("");
 
   /* 일별 */
   const dayInc = d => CANDS.map(c => incr(c.k, d, d + DAY));
@@ -371,7 +373,7 @@ async function makeShare(kind) {
   if (!svg) throw new Error("차트 없음");
   const h2 = panel.querySelector("h2").textContent, p = panel.querySelector(".phead p").textContent;
   const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
-  let legend = [...panel.querySelectorAll('.chip[aria-pressed="true"]')].map(b => ({ name: b.textContent, color: b.style.getPropertyValue("--c") }));
+  let legend = [...panel.querySelectorAll('.chip[aria-pressed="true"]')].map(b => ({ name: b.textContent, color: getComputedStyle(b).getPropertyValue("--c").trim() }));
   let title, ts, note = "비공식 트래커";
   if (key === "g") {
     ts = P.trend.t[P.trend.t.length - 1]; note = rankNote();
@@ -472,7 +474,9 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150
 /* 테마 */
 function isDark() { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
 function syncThemeBtn() { $("#themeBtn").textContent = isDark() ? "일반" : "다크"; }
-$("#themeBtn").addEventListener("click", () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("mma-theme", t); } catch (e) {} syncThemeBtn(); });
+$("#themeBtn").addEventListener("click", () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("mma-theme", t); } catch (e) {} syncThemeBtn(); render(); });
+// 기기 설정의 다크 모드가 바뀌어도 표 색(진하기 등)을 다시 계산
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { syncThemeBtn(); render(); });
 syncThemeBtn();
 
 /* 요약 복사 */

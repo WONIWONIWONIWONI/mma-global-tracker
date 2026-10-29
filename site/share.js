@@ -12,7 +12,8 @@ const W = 760, PAD = 28, HTML_LIMIT = 65535;
 function palette() {
   const s = getComputedStyle(document.documentElement), v = n => s.getPropertyValue(n).trim();
   return { bg: v("--bg"), surface: v("--surface"), sunk: v("--sunk"), ink: v("--ink"), muted: v("--muted"), line: v("--line"),
-    melon: v("--melon"), berriz: v("--berriz"), up: v("--up"), down: v("--down"), base: v("--base"), pin: v("--pin") };
+    melon: v("--melon"), berriz: v("--berriz"), up: v("--up"), down: v("--down"), base: v("--base"), pin: v("--pin"),
+    cut: v("--cut") || v("--ink"), cutInk: v("--cut-ink") || v("--surface") };
 }
 
 /* ───────── 그리기 목록 → 캔버스 ───────── */
@@ -76,9 +77,9 @@ function drawTable(doc, c, y, cols, rows, { cutoff = 0, rowH = 30 } = {}) {
     if (cutoff && i === cutoff - 1 && i < rows.length - 1) {
       // 컷 라인은 행 사이에 따로 띠를 두어 글자와 겹치지 않게 한다
       const my = y + 8;
-      doc.line(PAD, my, W - PAD, my, c.ink, 2);
-      doc.rect(W - PAD - 58, my - 8, 58, 16, c.ink, 3);
-      doc.text(W - PAD - 29, my + 4, "TOP 10", { size: 10, weight: 700, color: c.surface, align: "center" });
+      doc.line(PAD, my, W - PAD, my, c.cut, 2);
+      doc.rect(W - PAD - 58, my - 8, 58, 16, c.cut, 3);
+      doc.text(W - PAD - 29, my + 4, "TOP 10", { size: 10, weight: 600, color: c.cutInk, align: "center" });
       y += 16;
     } else doc.line(PAD, y, W - PAD, y, c.line);
   });
