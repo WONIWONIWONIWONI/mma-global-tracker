@@ -238,7 +238,12 @@ function renderSite(key) {
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
   const card = (k, r) => `<div class="card"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
 
-  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num hide-m">${r ? "−" + fmt(vals[order[r - 1]] - vals[k]) : "—"}</td><td class="num">${signed(diff(h1, k))}</td><td class="num hide-m">${f2(s.scores[k])}</td></tr>`).join("");
+  // 전체 현황: 넓은 화면은 표, 휴대폰은 한 줄 목록(순위 · 이름/점유율·1시간 증가·점수 · 득표수/앞 순위와 차)
+  const gapPrev = r => r ? "−" + fmt(vals[order[r - 1]] - vals[order[r]]) : "1위";
+  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num">${r ? gapPrev(r) : "—"}</td><td class="num">${signed(diff(h1, k))}</td><td class="num">${f2(s.scores[k])}</td></tr>`).join("");
+  const listM = order.map((k, r) => `<li${k === G.pin ? ' class="pin"' : ""}><span class="r">${r + 1}</span>
+    <span class="nm">${nameOf(k)}<small>${f2(s.scores[k])}점 · 1시간 ${signed(diff(h1, k))}</small></span>
+    <span class="tt"><b class="num">${fmt(vals[k])}</b><small class="num">${gapPrev(r)}</small></span></li>`).join("");
 
   // 구간 [a, b) 증가량. 관측이 없는 구간은 null(0으로 채우지 않음)
   const incr = (k, a, b) => {
@@ -270,7 +275,6 @@ function renderSite(key) {
   /* 표차 */
   const gNow = vals[S.a] - vals[S.b];
   const gStat = m => { const r = back(m * MIN); if (!r || r[S.a] == null || r[S.b] == null) return "—"; const x = gNow - (r[S.a] - r[S.b]); return `<span class="${x > 0 ? "up" : x < 0 ? "down" : ""}">${signed(x)}</span>`; };
-  const listOpen = openState[key + "-list"] ? " open" : "";
 
   v.innerHTML = `
   <div class="duel">${card(top, 1)}
@@ -278,8 +282,9 @@ function renderSite(key) {
     ${card(sec, 2)}</div>
   <div class="panel">
     <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div><div class="ctrl">${shareBtn(key + "-list")}</div></div>
-    <details id="${key}-list"${listOpen}><summary>${CANDS.length}팀 전체 보기</summary>
-    <div class="tscroll"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th class="hide-m">앞 순위와</th><th>1시간</th><th class="hide-m">점수</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
+    <div class="tscroll list-wide"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div>
+    <ol class="site-m">${listM}</ol>
+    <p class="hint-m">작은 글씨는 이 사이트 점수(10점 만점)와 1시간 증가, 오른쪽 아래는 앞 순위와의 표 차이입니다.</p>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>득표 추이</h2><p>${S.mode === "votes" ? "누적 득표수" : "전체 득표 대비 점유율"} · 1분 관측</p></div>

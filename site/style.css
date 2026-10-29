@@ -182,6 +182,16 @@ details[open] summary{margin-bottom:6px}
 .hint-m{font-size:12px;color:var(--muted);margin:8px 0 0}
 .hint-m em{font-style:normal}.hint-m .mc{color:var(--melon)}.hint-m .bc{color:var(--berriz)}
 .chip.more{border-style:dashed;color:var(--ink)}
+/* 사이트 전체 현황: 휴대폰용 한 줄 목록 */
+.site-m{display:none;list-style:none;margin:0;padding:0}
+.site-m li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line)}
+.site-m li.pin{background:var(--pin)}
+.site-m .r{font-family:var(--f-disp);font-weight:600;font-size:18px;text-align:right}
+.site-m .nm{font-weight:500;font-size:14.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-m .nm small{display:block;font-weight:400;font-size:11.5px;color:var(--muted);font-family:var(--f-num);overflow:hidden;text-overflow:ellipsis}
+.site-m .tt{text-align:right;line-height:1.2}
+.site-m .tt b{display:block;font-size:15px}
+.site-m .tt small{font-size:11px;color:var(--muted)}
 .heat th{max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .heat .dl{display:block;font-size:11px;line-height:1.2}
 
@@ -190,8 +200,8 @@ details[open] summary{margin-bottom:6px}
   .top{position:static}
   body::before{display:none}
   .hide-m{display:none}
-  .rank-wide{display:none}
-  .rank-m,.hint-m{display:block}
+  .rank-wide,.list-wide{display:none}
+  .rank-m,.site-m,.hint-m{display:block}
   .phead .ctrl{width:100%}
   .heat td,.heat th{padding:5px 6px}
   /* 요약 카드: 1위·컷은 나란히, 관심 후보는 아래 한 줄로 작게 */
