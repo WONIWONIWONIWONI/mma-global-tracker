@@ -1,0 +1,13 @@
+// Cloudflare Worker 설정. 무료 플랜 전용(유료 기능은 쓰지 않는다).
+{
+  "name": "mma-global-tracker",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-01",
+  // 화면 파일. 정적 자산 요청은 무료·무제한이고 Worker를 거치지 않는다(run_worker_first는 쓰지 않음).
+  "assets": { "directory": "./site" },
+  // 1분마다 수집. KST 00시 마감값은 이 수집의 23:59 관측으로 남는다.
+  "triggers": { "crons": ["* * * * *"] },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "mma-tracker", "database_id": "fae90659-d2df-4bad-a594-63ebd4d79c0f" }
+  ]
+}

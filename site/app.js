@@ -1,22 +1,20 @@
 // 화면. API 응답(점수 계산이 끝난 결과)을 받아 그리기만 한다.
-import { API_URL, REFRESH_MS } from "./settings.js";
+import { USE_MOCK, REFRESH_MS } from "./settings.js";
+import { loadRemote } from "./remote.js";
 import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
 
 const $ = s => document.querySelector(s);
 const PALETTE = ["#e0542c", "#2d7ad6", "#159f6c", "#9a57cf", "#e09b00", "#0e9fae", "#d1336b", "#7a6a55"];
 const VIEWS = ["global", "melon", "berriz"];
-const USE_MOCK = !API_URL || new URLSearchParams(location.search).has("mock");
 
 /* ───────── 데이터 ───────── */
 let P = null, CANDS = [], K = {}, RULES = null;
 let nextFetch = 0, loading = false, loadError = null;
 
 async function fetchPayload() {
-  if (USE_MOCK) return (await import("../shared/mockApi.js")).getPayload(Date.now());
-  const r = await fetch(API_URL);
-  if (!r.ok) throw new Error("API 응답 " + r.status);
-  return r.json();
+  if (USE_MOCK) return (await import("./core/mockApi.js")).getPayload(Date.now());
+  return loadRemote();
 }
 async function refresh() {
   if (loading) return;

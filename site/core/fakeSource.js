@@ -14,6 +14,23 @@ function rng(seed) {
 // 밤 10시 무렵 투표가 몰리고 새벽에 줄어드는 하루 흐름
 const diurnal = ts => { const h = ((ts + KST_OFFSET) / HOUR) % 24; return 0.35 + 0.65 * (0.5 + 0.5 * Math.cos((h - 22) / 24 * 2 * Math.PI)); };
 
+// Worker용 가짜 어댑터: 이전 관측에 1분치 증가량을 더한 다음 관측을 만든다(상태 없이 시각만으로 결정됨).
+// 이전 관측이 없으면 모두 0표로 투표를 시작한다. 실행이 몇 분 빠졌으면 그만큼(최대 60분) 더한다.
+const hash = a => { let t = a + 0x6D2B79F5 | 0; t = Math.imul(t ^ t >>> 15, 1 | t); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+export function fakeNext(source, prev, now) {
+  const cfg = SETUP[source], minute = Math.floor(now / MIN);
+  const mins = prev ? Math.min(60, Math.max(1, Math.round((now - prev.observedAt) / MIN))) : 0;
+  const candidates = {};
+  let total = 0;
+  CANDIDATES.forEach((c, k) => {
+    const base = prev && typeof prev.candidates[c.id] === "number" ? prev.candidates[c.id] : 0;
+    const drift = 1 + 0.22 * Math.sin(minute / (240 + k * 31) + cfg.seed + k);
+    const v = base + Math.round(cfg.rates[k] * diurnal(now) * drift * (0.75 + 0.5 * hash(minute * 977 + k * 131 + cfg.seed)) * mins);
+    candidates[c.id] = v; total += v;
+  });
+  return { observedAt: now, sourceAt: null, totalVotes: total, candidates };
+}
+
 let state = null;
 
 function record(s) {
