@@ -119,7 +119,9 @@ function renderGlobal() {
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     cards = `<div class="cards">
       <div class="card first"><span class="k">1위 (잠정)</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${f2(R[0].total - R[1].total)}점 앞섬</span></div>
-      <div class="card"><span class="k">TOP10 컷</span><span class="n">10위 ${esc(R[CUT - 1].name)} · 11위 ${esc(R[CUT].name)}</span><span class="v">${f2(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span><span class="s">10위 ${f2(R[CUT - 1].total)}점 · 11위 ${f2(R[CUT].total)}점</span></div>
+      <div class="card cut"><span class="k">TOP10 컷</span>
+        <span class="cutpair"><span><i>10위</i><b>${esc(R[CUT - 1].name)}</b><em>${f2(R[CUT - 1].total)}</em></span><span><i>11위</i><b>${esc(R[CUT].name)}</b><em>${f2(R[CUT].total)}</em></span></span>
+        <span class="v">${f2(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span></div>
       <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
         <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
     </div>`;
@@ -470,6 +472,28 @@ document.addEventListener("visibilitychange", () => {
 });
 
 let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150); }).observe(document.querySelector("main"));
+
+/* 맨 위로 버튼: 화면 높이의 절반 넘게 내려가면 보인다 */
+{
+  const btn = $("#toTop");
+  let shown = false, ticking = false;
+  const update = () => {
+    ticking = false;
+    const want = scrollY > innerHeight * 0.5;
+    if (want === shown) return;
+    shown = want;
+    if (want) { btn.hidden = false; requestAnimationFrame(() => btn.classList.add("show")); }
+    else { btn.classList.remove("show"); setTimeout(() => { if (!shown) btn.hidden = true; }, 200); }
+  };
+  addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  btn.addEventListener("click", () => {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    // 부드러운 스크롤이 느리거나 멈추는 브라우저도 있어, 0.9초 뒤에도 위가 아니면 바로 맨 위로
+    setTimeout(() => { if (scrollY > 0) scrollTo(0, 0); }, 900);
+  });
+  update();
+}
 
 /* 테마 */
 function isDark() { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
