@@ -1,0 +1,16 @@
+{
+  "name": "MMA 2026 글로벌 TOP10 트래커",
+  "short_name": "MMA TOP10",
+  "description": "멜론·베리즈 투표 잠정 순위, TOP10 컷 점수차, 표차 분석 (비공식)",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#100e19",
+  "theme_color": "#100e19",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

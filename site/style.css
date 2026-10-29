@@ -244,6 +244,8 @@ details[open] summary{margin-bottom:6px}
 @media (max-width:640px){
   .top{position:static}
   body::before{display:none}
+  /* 홈 화면 앱으로 열면 상태 표시줄(시계·노치) 아래로 내용이 들어가지 않게 그만큼 띄운다. 일반 브라우저에서는 0 */
+  body{padding-top:env(safe-area-inset-top,0px)}
   .hide-m{display:none}
   .rank-wide,.list-wide{display:none}
   .rank-m,.site-m,.hint-m{display:block}

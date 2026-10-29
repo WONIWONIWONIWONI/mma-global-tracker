@@ -141,6 +141,8 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
   API 오류·15분 넘은 관측·가짜 데이터면 이슈를 열고 저장소 주인을 언급(이메일 알림), 정상이면 닫는다(라벨 collect-alert).
 - 아이콘(favicon.svg/ico, apple-touch-icon.png)과 robots.txt를 정적 파일로 둬서 브라우저 자동 요청이 Worker 한도를 안 쓴다.
   링크 미리보기: index.html의 og 태그 + `site/og.png`(1200×630). 그림은 Edge 헤드리스 스크린샷으로 만들었다.
+- 홈 화면 앱(2026-10-30): `site/manifest.webmanifest`(standalone, 아이콘 192·512·maskable 512) + iOS용 meta.
+  앱스토어 앱은 등록비가 들어 하지 않는다. 홈 화면 앱으로 열면 휴대폰에서 body 위에 safe-area 여백을 둔다.
 - 비밀값(파일에 적지 않음): Cloudflare API 토큰 하나(Account Analytics 읽기 + D1 읽기)를
   Worker 비밀값과 GitHub 저장소 비밀값에 CF_API_TOKEN 으로, 계정 ID를 CF_ACCOUNT_ID 로 각각 넣는다.
   토큰 값은 사용자가 직접 입력한다(Claude가 토큰을 받거나 입력하지 않는다).
