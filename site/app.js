@@ -1,8 +1,9 @@
 // 화면. API 응답(점수 계산이 끝난 결과)을 받아 그리기만 한다.
 import { USE_MOCK, REFRESH_MS } from "./settings.js";
 import { loadRemote } from "./remote.js";
-import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
+import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
+import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
 
 const $ = s => document.querySelector(s);
 const PALETTE = ["#e0542c", "#2d7ad6", "#159f6c", "#9a57cf", "#e09b00", "#0e9fae", "#d1336b", "#7a6a55"];
@@ -62,11 +63,10 @@ function needHTML(n) {
 }
 
 /* ───────── 글로벌 TOP10 ───────── */
-function renderGlobal() {
-  const v = $("#view-global"), CUT = RULES.cutoff, MAXT = RULES.provisionalMax, L = P.live;
-  const snaps = P.snapshots.map(s => s.at);
+// 선택한 날짜(실시간 또는 00시 마감)의 순위 데이터. 화면과 공유 이미지가 같이 쓴다.
+function globalData() {
+  const L = P.live, snaps = P.snapshots.map(s => s.at);
   if (G.snap !== "live" && !snaps.includes(G.snap)) G.snap = "live";
-
   let data = null, prevRanks = null, cmp = "", when = "", hold = "";
   if (G.snap === "live") {
     if (!L) hold = "아직 두 사이트의 관측이 모두 모이지 않았습니다.";
@@ -80,6 +80,12 @@ function renderGlobal() {
     when = `${mdK(G.snap - 1)} 마감 · ${md(G.snap)} 00:00 관측`;
   }
   const R = data ? data.rows.map(r => ({ ...r, k: K[r.id] })) : null;
+  return { snaps, R, prevRanks, cmp, when, hold };
+}
+
+function renderGlobal() {
+  const v = $("#view-global"), CUT = RULES.cutoff, MAXT = RULES.provisionalMax;
+  const { snaps, R, prevRanks, cmp, when, hold } = globalData();
   if (!G.sel) G.sel = new Set(R ? [R[0].k, R[1].k, R[CUT - 1].k, R[CUT].k, G.pin] : [0, 1, G.pin]);
 
   let cards = "", table = "";
@@ -122,7 +128,7 @@ function renderGlobal() {
   v.innerHTML = `${cards}
   <div class="panel">
     <div class="phead"><div><h2>${G.snap === "live" ? "실시간 잠정 순위" : mdK(G.snap - 1) + " 마감 순위"}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
-      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select></div></div>
+      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
     <p class="note">심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다. 투표 점수는 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
   </div>
@@ -131,6 +137,7 @@ function renderGlobal() {
       <div class="ctrl">
         <span class="seg">${[["total", "합산 점수"], ["g12", "1·2위 차"], ["cut", "10·11위 차"]].map(([k, l]) => `<button type="button" data-g="trend" data-v="${k}" aria-pressed="${G.trend === k}">${l}</button>`).join("")}</span>
         <span class="seg">${[["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-g="range" data-v="${k}" aria-pressed="${G.range === k}">${l}</button>`).join("")}</span>
+        ${shareBtn("g-trend")}
       </div></div>
     ${G.trend === "total" ? `<div class="chips">${chipsHTML(R ? R.map(r => r.k) : CANDS.map(c => c.k), G.sel, "gsel")}</div>` : ""}
     <div class="chart" id="g-chart"></div>
@@ -162,21 +169,29 @@ function buildCandles(ser, a, b, iv) {
   return out.slice(-maxN);
 }
 
-function renderSite(key) {
-  const s = P.sites[key], S = ST[key], v = $("#view-" + key);
-  if (!s.latest || !s.series.t.length) { v.innerHTML = `<div class="panel"><p class="empty">${s.name} 관측이 아직 없습니다.</p></div>`; return; }
+// 사이트 최신 현황. 화면과 공유 이미지가 같이 쓴다. 관측이 없으면 null.
+function siteData(key) {
+  const s = P.sites[key];
+  if (!s.latest || !s.series.t.length) return null;
   const ser = s.series, L = ser.t.length - 1, now = ser.t[L], start = ser.t[0];
   const vals = ser.v[L], total = sum(vals);
   const order = CANDS.map(c => c.k).sort((a, b) => (vals[b] ?? -1) - (vals[a] ?? -1));
   const back = ms => { const i = at(ser, now - ms); return i < 0 ? null : ser.v[i]; };
   const h1 = back(HOUR), m1 = L > 0 ? ser.v[L - 1] : null;
   const diff = (row, k) => row && row[k] != null && vals[k] != null ? vals[k] - row[k] : null;
+  const share = k => total && vals[k] != null ? vals[k] / total * 100 : 0;
+  return { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share };
+}
+
+function renderSite(key) {
+  const S = ST[key], v = $("#view-" + key), D0 = siteData(key);
+  if (!D0) { v.innerHTML = `<div class="panel"><p class="empty">${P.sites[key].name} 관측이 아직 없습니다.</p></div>`; return; }
+  const { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share } = D0;
   if (!S.sel) S.sel = new Set([order[0], order[1], G.pin]);
   if (S.a == null) { S.a = order[0]; S.b = order[1]; }
   const ds = []; for (let d = midnight(start); d <= midnight(now); d += DAY) ds.push(d);
   if (!ds.includes(S.hDate)) S.hDate = ds[ds.length - 1];
   if (!ds.includes(S.dDate)) S.dDate = ds[ds.length - 1];
-  const share = k => total && vals[k] != null ? vals[k] / total * 100 : 0;
   const top = order[0], sec = order[1], gap = vals[top] - vals[sec];
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
   const card = (k, r) => `<div class="card"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
@@ -216,7 +231,7 @@ function renderSite(key) {
     <div class="card gap"><span class="k">1·2위 표차</span><span class="v num" style="font-family:var(--f-disp)">${fmt(gap)}</span><span class="s">1시간 전보다 <span class="${gapH > 0 ? "up" : gapH < 0 ? "down" : ""}">${signed(gapH)}</span>${gapH > 0 ? " 벌어짐" : gapH < 0 ? " 좁혀짐" : ""}</span></div>
     ${card(sec, 2)}</div>
   <div class="panel">
-    <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div></div>
+    <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div><div class="ctrl">${shareBtn(key + "-list")}</div></div>
     <details id="${key}-list"${listOpen}><summary>${CANDS.length}팀 전체 보기</summary>
     <div class="tscroll"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
   </div>
@@ -225,6 +240,7 @@ function renderSite(key) {
       <div class="ctrl">
         <span class="seg">${[["votes", "득표수"], ["share", "득표율"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="mode" data-v="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join("")}</span>
         <span class="seg">${[["6h", "6시간"], ["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="range" data-v="${k}" aria-pressed="${S.range === k}">${l}</button>`).join("")}</span>
+        ${shareBtn(key + "-line")}
       </div></div>
     <div class="chips">${chipsHTML(order, S.sel, key)}</div>
     <div class="chart" id="${key}-line"></div>
@@ -234,6 +250,7 @@ function renderSite(key) {
       <div class="ctrl">
         <select id="${key}-a" aria-label="앞 후보">${candOpts(S.a)}</select><span class="lbl">−</span><select id="${key}-b" aria-label="뒤 후보">${candOpts(S.b)}</select>
         <span class="seg">${[["5m", "5분"], ["30m", "30분"], ["1h", "1시간"], ["1d", "일"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="iv" data-v="${k}" aria-pressed="${S.iv === k}">${l}봉</button>`).join("")}</span>
+        ${shareBtn(key + "-candle")}
       </div></div>
     <div class="stats"><div><div class="k">현재 표차</div><div class="v">${signed(gNow)}</div></div><div><div class="k">1시간 변화</div><div class="v">${gStat(60)}</div></div><div><div class="k">4시간 변화</div><div class="v">${gStat(240)}</div></div><div><div class="k">24시간 변화</div><div class="v">${gStat(1440)}</div></div></div>
     <div class="chart" id="${key}-candle"></div>
@@ -266,6 +283,60 @@ function renderSite(key) {
   drawCandles($("#" + key + "-candle"), buildCandles(ser, S.a, S.b, S.iv));
 }
 
+/* ───────── 이미지 공유 ───────── */
+const shareBtn = kind => `<button type="button" class="btn sbtn" data-share="${kind}">이미지 공유</button>`;
+const stampOf = ts => `${mdK(ts)} ${hm(ts)}`;
+const fileStamp = ts => { const d = kd(ts); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + "-" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()); };
+const rankNote = () => `비공식 트래커 · 심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`;
+const IV_LABEL = { "5m": "5분봉", "30m": "30분봉", "1h": "1시간봉", "1d": "일봉" };
+
+// kind: g-rank, g-trend, <site>-list, <site>-line, <site>-candle. 지금 화면에 보이는 선택(날짜·후보·구간)을 그대로 쓴다.
+async function makeShare(kind) {
+  if (kind === "g-rank") {
+    const { R, prevRanks, when } = globalData();
+    if (!R) throw new Error("순위 데이터 없음");
+    const live = G.snap === "live", ts = live ? Math.max(P.live.melonAt, P.live.berrizAt) : G.snap;
+    const m = {
+      title: live ? "MMA 2026 글로벌 TOP10 잠정 순위" : `MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`,
+      sub: when, sample: P.sample, cutoff: RULES.cutoff, note: rankNote(),
+      rows: R.map(r => ({ rank: r.rank, change: prevRanks && prevRanks[r.id] != null ? prevRanks[r.id] - r.rank : null, name: r.name,
+        chart: r.chart, ms: r.ms, bs: r.bs, total: r.total, gap: r.gapAhead, pin: r.k === G.pin }))
+    };
+    return { canvas: await rankImage(m), html: rankHTML(m), title: m.title, name: `mma-top10-rank-${fileStamp(ts)}` };
+  }
+  const [key, part] = kind.split("-");
+  if (part === "list") {
+    const D = siteData(key);
+    const m = {
+      title: `${D.s.name} 투표 현황`, sub: `총 ${fmt(D.total)}표 · ${stampOf(D.now)} 관측`, sample: P.sample, site: key,
+      note: `비공식 트래커 · 점수는 ${D.s.name} 1위 대비 ${RULES.siteMax}점 환산`,
+      rows: D.order.map((k, i) => ({ rank: i + 1, name: CANDS[k].name, votes: D.vals[k], share: D.share(k),
+        gap: i ? D.vals[D.order[i - 1]] - D.vals[k] : null, h1: D.diff(D.h1, k), score: D.s.scores[k], pin: k === G.pin }))
+    };
+    return { canvas: await siteImage(m), html: siteHTML(m), title: m.title, name: `mma-top10-${key}-${fileStamp(D.now)}` };
+  }
+  // 차트는 화면에 그려진 SVG를 그대로 옮긴다
+  const panel = document.querySelector(`[data-share="${kind}"]`).closest(".panel"), svg = panel.querySelector(".chart svg");
+  if (!svg) throw new Error("차트 없음");
+  const h2 = panel.querySelector("h2").textContent, p = panel.querySelector(".phead p").textContent;
+  const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+  let legend = [...panel.querySelectorAll('.chip[aria-pressed="true"]')].map(b => ({ name: b.textContent, color: b.style.getPropertyValue("--c") }));
+  let title, ts, note = "비공식 트래커";
+  if (key === "g") {
+    ts = P.trend.t[P.trend.t.length - 1]; note = rankNote();
+    title = `MMA 2026 글로벌 TOP10 · ${G.trend === "total" ? "합산 점수 추이" : G.trend === "g12" ? "1·2위 점수차 추이" : "10·11위 점수차 추이"}`;
+    if (G.trend !== "total") legend = [];
+  } else {
+    const D = siteData(key), S = ST[key]; ts = D.now;
+    if (part === "candle") {
+      title = `${D.s.name} 표차 · ${CANDS[S.a].name} − ${CANDS[S.b].name} · ${IV_LABEL[S.iv]}`;
+      legend = [{ name: "격차 확대", color: col("--up") }, { name: "격차 축소", color: col("--down") }];
+    } else title = `${D.s.name} ${h2}`;
+  }
+  const m = { title, sub: `${p} · ${stampOf(ts)} 기준`, sample: P.sample, legend, svg, note };
+  return { canvas: await chartImage(m), title, name: `mma-top10-${kind}-${fileStamp(ts)}` };
+}
+
 /* ───────── 상태줄 · 렌더 · 이벤트 ───────── */
 function renderStatus() {
   const el = $("#status");
@@ -294,6 +365,7 @@ window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 
 document.querySelector("main").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.share) { const kind = b.dataset.share; openShare(() => makeShare(kind)); return; }
   if (b.dataset.g) { G[b.dataset.g] = b.dataset.v; renderGlobal(); return; }
   if (b.dataset.s) { ST[b.dataset.s][b.dataset.f] = b.dataset.v; renderSite(b.dataset.s); return; }
   if (b.dataset.chip) {
