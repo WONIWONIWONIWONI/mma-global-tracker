@@ -146,6 +146,8 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 - 개인정보: 이 저장소는 공개다. 사용자의 이메일, 이메일에서 나온 아이디, 계정 ID를 파일·커밋에 적지 않는다.
   workers.dev 하위 도메인은 원래 이메일 아이디였어서 사용자가 대시보드에서 happyapple로 바꿨다(2026-10-29).
 - 저장소: https://github.com/WONIWONIWONIWONI/mma-global-tracker (공개, main 브랜치)
+- 방문 통계: Cloudflare Web Analytics(무료, 쿠키 없음). `site/index.html` <head>의 비콘 스크립트(공개 토큰).
+  방문 기록은 cloudflareinsights.com으로 가므로 Worker 요청 한도를 쓰지 않는다. 대시보드 → 관찰 가능성 → Web Analytics.
 
 ## 파일 구조
 
