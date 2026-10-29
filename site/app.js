@@ -1,6 +1,6 @@
 // 화면. API 응답(점수 계산이 끝난 결과)을 받아 그리기만 한다.
-import { USE_MOCK, REFRESH_MS } from "./settings.js";
-import { loadRemote } from "./remote.js";
+import { USE_MOCK, REFRESH_MS, IDLE_MS } from "./settings.js";
+import * as remote from "./remote.js";
 import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
 import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
@@ -11,19 +11,35 @@ const VIEWS = ["global", "melon", "berriz"];
 
 /* ───────── 데이터 ───────── */
 let P = null, CANDS = [], K = {}, RULES = null;
-let nextFetch = 0, loading = false, loadError = null;
+let nextFetch = 0, loading = false, loadError = null, refreshMs = REFRESH_MS;
+let lastActive = Date.now(), paused = false;
 
 async function fetchPayload() {
   if (USE_MOCK) return (await import("./core/mockApi.js")).getPayload(Date.now());
-  return loadRemote();
+  return remote.loadRemote();
 }
 async function refresh() {
   if (loading) return;
   loading = true;
   try { apply(await fetchPayload()); loadError = null; }
   catch (e) { loadError = e; console.error(e); if (!P) $("#view-" + VIEW).innerHTML = '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'; }
-  finally { loading = false; nextFetch = Date.now() + REFRESH_MS; renderStatus(); }
+  finally {
+    loading = false;
+    // 서버가 정한 간격을 따르고, 여러 화면이 같은 순간에 몰리지 않게 0~10초를 더한다
+    refreshMs = USE_MOCK ? REFRESH_MS : Math.max(REFRESH_MS, remote.serverRefreshSec * 1000);
+    nextFetch = Date.now() + refreshMs + (USE_MOCK ? 0 : Math.random() * 10e3);
+    renderStatus();
+  }
 }
+
+// 자리 비움: 조작이 없으면 갱신을 멈추고, 다시 움직이면 바로 최신값을 받는다
+function activity() {
+  const now = Date.now();
+  if (now - lastActive < 1000 && !paused) return;
+  lastActive = now;
+  if (paused) { paused = false; refresh(); }
+}
+for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart", "scroll"]) addEventListener(ev, activity, { passive: true });
 function apply(p) {
   const first = !P;
   P = p; RULES = p.config.rules;
@@ -349,7 +365,10 @@ function renderStatus() {
   el.innerHTML = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
     <span>멜론 ${site(m)}</span><span>베리즈 ${site(b)}</span>
     ${P.live ? `<span>사이트 간 시각차 <b class="num">${Math.round(P.live.skewMs / 1000)}초</b></span>` : ""}
-    <span>다음 갱신 <b class="num">${Math.max(0, Math.ceil((nextFetch - now) / 1000))}초</b></span>
+    ${paused
+      ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
+      : `<span>다음 갱신 <b class="num">${Math.max(0, Math.ceil((nextFetch - now) / 1000))}초</b></span>`}
+    ${refreshMs > REFRESH_MS ? `<span class="warn">접속이 많아 ${refreshMs % 60e3 ? refreshMs / 1000 + "초" : refreshMs / 60e3 + "분"} 간격으로 갱신 중</span>` : ""}
     ${loadError ? '<span class="warn">최근 갱신 실패 · 이전 값 표시 중</span>' : ""}
     ${P.sample ? '<span class="sample">예시 데이터 · 투표 주소 공개 전 화면</span>' : ""}`;
 }
@@ -383,9 +402,18 @@ document.querySelector("main").addEventListener("change", e => {
 });
 document.addEventListener("toggle", e => { if (e.target.id) openState[e.target.id] = e.target.open; }, true);
 
-// 자동 갱신: 보이는 탭에서만. 백그라운드로 가면 멈추고 돌아오면 바로 갱신.
-setInterval(() => { renderStatus(); if (!document.hidden && Date.now() >= nextFetch) refresh(); }, 1000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() >= nextFetch) refresh(); });
+// 자동 갱신: 보이는 탭에서만, 조작이 IDLE_MS 넘게 없으면 멈춤. 돌아오거나 움직이면 바로 갱신.
+setInterval(() => {
+  if (!document.hidden && !paused && !loading && Date.now() >= nextFetch) {
+    if (Date.now() - lastActive > IDLE_MS) paused = true; else refresh();
+  }
+  renderStatus();
+}, 1000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  activity();
+  if (!paused && Date.now() >= nextFetch) refresh();
+});
 
 let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150); }).observe(document.querySelector("main"));
 

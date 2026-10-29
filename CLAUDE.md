@@ -71,8 +71,6 @@ LESSERAFIM 42.82, BOYNEXTDOOR 42.37, i-dle 42.05, Stray Kids 41.80, IU 39.80, RE
 
 - 이미지 공유 확장: 시간대별 증가량·일일 득표량·마감 기록 표는 아직 공유 버튼이 없다.
 - 실제 사이트 어댑터(투표 주소 공개 후). 지금은 가짜 데이터를 수집·저장한다.
-- D1 → GitHub 일일 백업.
-- 요청 수 절약: 오래 조작이 없으면 자동 갱신 일시정지(하루 10만 요청 한도 대비).
 - 12시간 표차 예측은 넣지 않는다(점수 구조가 달라 검증이 안 됨).
 
 ## 기술 구성 (정한 방향)
@@ -91,10 +89,20 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 - 점수 계산 위치(2026-10-29 변경): 원래 "API에서 한 번만 계산"이었으나, 무료 플랜 CPU 10ms와 D1 읽기 한도 때문에
   Worker는 계산하지 않고 관측 조각만 내려주며, 계산은 브라우저가 `site/core/api.js`로 한다.
   계산 코드는 여전히 한 벌이고, 가짜 모드와 실제 모드가 같은 코드를 쓴다.
-- 요청 수: Workers 무료 플랜은 하루 10만 요청. workers.dev 주소에서는 Cache API가 동작하지 않으므로 캐시에 기대지 않는다.
-  화면은 처음 열 때 2회(history, live), 이후 1분마다 1회(latest). 백그라운드 탭에서는 멈춘다.
-  대략 하루 내내 열어 둔 화면 약 70개가 한도. 마감 직전 몰림이 가장 큰 위험.
-- 백업: 하루 한 번 D1 데이터를 내보내 GitHub 저장소에 보관.
+- 요청 수(2026-10-29 적용): Workers 무료 플랜은 계정 전체 하루 10만 요청(UTC 00시 = KST 09시 초기화).
+  workers.dev 주소에서는 Cache API가 동작하지 않으므로 캐시에 기대지 않는다. 세 가지로 아낀다.
+  1. 첫 접속 1회(/api/init), 이후 갱신마다 1회(/api/latest).
+  2. 자리 비움: 15분 동안 조작이 없거나 탭이 백그라운드면 갱신을 멈춘다. 움직이면 바로 갱신(`?idle=초`로 시험).
+  3. 서버가 갱신 간격을 정함: Cron이 5분마다 Cloudflare GraphQL 사용량(workersInvocationsAdaptive, 15분 묶음 1회 조회)으로
+     오늘 쓴 양과 최근 속도를 보고, 남은 한도(10% 여유 제외)를 초기화까지 고르게 쓰도록 60~600초를 정해 `m:usage`에 저장.
+     API 응답의 refreshSec 를 화면이 따른다. 통계 API는 조회 제한이 있어("Rate limiter budget depleted") 조회를 아낀다.
+     비밀값 CF_API_TOKEN·CF_ACCOUNT_ID 가 없으면 이 기능만 꺼지고 60초로 동작한다.
+- 백업(2026-10-29 적용): GitHub Actions `.github/workflows/backup.yml`이 매일 00:30 KST에 `scripts/backup.py`로
+  끝난 KST 날짜의 obs 원본을 `backup/obs-YYYY-MM-DD.ndjson.gz`로 커밋한다(D1 REST 조회, D1 읽기 권한).
+  공개 저장소라 Actions 무료. 예약이 늦어도 백업에는 문제없고, 빠진 날은 다음 실행에서 채운다.
+- 비밀값(파일에 적지 않음): Cloudflare API 토큰 하나(Account Analytics 읽기 + D1 읽기)를
+  Worker 비밀값과 GitHub 저장소 비밀값에 CF_API_TOKEN 으로, 계정 ID를 CF_ACCOUNT_ID 로 각각 넣는다.
+  토큰 값은 사용자가 직접 입력한다(Claude가 토큰을 받거나 입력하지 않는다).
 - 투표 주소 공개 전: 사이트별 "어댑터"(원본 응답을 공통 형식으로 바꾸는 부분)는 가짜 데이터로
   두고 나머지를 완성한다. 주소가 공개되면 실제 응답을 확인해 어댑터만 채운다.
 - 원본 사이트의 약관과 요청 빈도를 지킨다(과도한 호출 금지).
@@ -111,15 +119,16 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 
 - `site/` 정적 화면(배포 시 그대로 공개)
   - `app.js` 화면 그리기, `charts.js` 차트, `format.js` 표시 형식, `settings.js` 데이터 출처·갱신 간격, `share.js` 이미지 공유
-  - `remote.js` /api에서 관측을 받아 모으고 `core/api.js`로 계산
+  - `remote.js` /api에서 관측을 받아 모으고 `core/api.js`로 계산, 서버가 정한 갱신 간격(refreshSec) 보관
   - `core/` 계산 부분(브라우저·Worker 공용, 외부 라이브러리 없음)
     - `config.js` 후보(id·이름·음원 점수·사이트별 ID), 점수 규칙, 수집 기준(오래된 값 3분, 합산 보류 5분, 빈 구간 10분)
     - `scoring.js` 사이트 점수, 합산 순위, 역전 필요 표 / `history.js` 관측 → 화면용 시계열(최근 6시간 1분, 48시간 5분, 그 이전 15분)
     - `api.js` `buildPayload(사이트별 관측, now)` → 화면 데이터(실시간 순위, 00시 마감 순위, 점수 추이, 사이트별 시계열)
     - `fakeSource.js` 가짜 데이터(브라우저용 전체 생성 + Worker용 `fakeNext`), `mockApi.js` 브라우저 안 가짜 API
-- `worker/index.js` 1분 수집(Cron)과 /api(latest, live, history). 저장 구조 설명은 파일 머리말.
+- `worker/index.js` 1분 수집(Cron), 5분마다 사용량 확인, /api(init, latest). 저장 구조 설명은 파일 머리말.
   `worker/adapters/` 사이트별 어댑터(지금은 가짜), `worker/schema.sql` D1 표
 - `scripts/seed-local.mjs` 로컬 D1에 2.5일치 가짜 관측 채우기(원격은 건드리지 않음)
+- `scripts/backup.py` D1 → backup/ 날짜별 백업(`--dry-run` 미리보기), `backup/` 백업 파일과 형식 설명
 - `wrangler.jsonc` Worker 설정, `package.json` 명령(dev, deploy, db:init:local/remote)
 
 ## 실행 방법

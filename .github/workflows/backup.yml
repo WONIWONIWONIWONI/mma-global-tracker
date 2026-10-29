@@ -1,0 +1,39 @@
+# 하루 한 번 D1 관측 원본을 backup/ 폴더에 날짜별 파일로 저장한다.
+# 공개 저장소라 GitHub Actions는 무료이고, 예약 실행이 몇 분 늦어도 백업에는 문제없다.
+# 필요한 저장소 비밀값: CF_API_TOKEN(D1 읽기), CF_ACCOUNT_ID
+name: D1 backup
+
+on:
+  schedule:
+    - cron: "30 15 * * *"   # 매일 00:30 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Export finished days from D1
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: python3 scripts/backup.py
+      - name: Commit new backup files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add backup
+          if git diff --cached --quiet; then
+            echo "새 백업 없음"
+          else
+            git commit -m "Backup D1 observations"
+            git push
+          fi

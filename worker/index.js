@@ -11,6 +11,9 @@
 // - blob: 화면용 조각. 관측 한 줄(JSON + ",")을 계속 이어 붙인다.
 //   h:<UTC 시각, 시간 단위>  그 1시간의 1분 간격 관측(최근 8시간만 보관)
 //   d:<KST 날짜>             그날의 5분 간격 관측(00:05 ~ 다음 날 00:00 수집. 마지막 00:00 수집이 그날 마감값)
+//   m:usage                  요청 사용량과 화면 갱신 간격(JSON 한 덩어리, 덮어씀)
+//
+// API: /api/init(처음 1회, 전체), /api/latest(이후 갱신). 응답 {now, sample, refreshSec, lines:[관측...]}
 import * as melon from "./adapters/melon.js";
 import * as berriz from "./adapters/berriz.js";
 import { MIN, HOUR, KST_OFFSET } from "../site/core/time.js";
@@ -55,22 +58,83 @@ async function collect(env, at) {
   await env.DB.batch(stmts);
 }
 
-function json(rows, now, maxAge) {
-  const body = rows.map(r => r.body).join("");
-  return new Response(`{"now":${now},"sample":${SAMPLE},"lines":[${body.slice(0, -1)}]}`, {
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${maxAge}` }
+/* ───────── 요청 한도 지키기: 남은 한도에 맞춰 화면 갱신 간격을 정한다 ─────────
+ * Workers 무료 플랜은 계정 전체 하루 10만 요청(UTC 00시 = KST 09시 초기화). 5분마다 Cloudflare 사용량 통계로
+ * 오늘 쓴 요청 수와 최근 요청 속도를 보고, 남은 한도를 초기화 시각까지 나눠 쓰도록 갱신 간격(60~600초)을 정해 둔다.
+ * 화면은 API 응답의 refreshSec 를 따른다. 필요한 비밀값(대시보드에서 등록): CF_API_TOKEN(Account Analytics 읽기), CF_ACCOUNT_ID.
+ */
+const DAILY_LIMIT = 100000, RESERVE = 0.1, REFRESH_MIN = 60, REFRESH_MAX = 600, USAGE_KEY = "m:usage";
+
+// 오늘(UTC) 요청 수를 15분 묶음으로 한 번에 가져온다(통계 API 조회 횟수를 아끼려고 한 번만 묻는다).
+async function usageToday(env, dayStart, at) {
+  const query = "query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:200,filter:{datetime_geq:$s,datetime_leq:$u}){sum{requests} dimensions{datetimeFifteenMinutes}}}}}";
+  const r = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+    method: "POST",
+    headers: { authorization: "Bearer " + env.CF_API_TOKEN, "content-type": "application/json" },
+    body: JSON.stringify({ query, variables: { a: env.CF_ACCOUNT_ID, s: new Date(dayStart).toISOString(), u: new Date(at).toISOString() } })
   });
+  const j = await r.json();
+  if (!r.ok || j.errors) throw new Error("사용량 조회 실패: " + JSON.stringify(j.errors || r.status).slice(0, 200));
+  const buckets = new Map();
+  for (const x of j.data.viewer.accounts[0].workersInvocationsAdaptive) {
+    const t = Date.parse(x.dimensions.datetimeFifteenMinutes);
+    buckets.set(t, (buckets.get(t) || 0) + x.sum.requests);
+  }
+  const used = [...buckets.values()].reduce((s, n) => s + n, 0);
+  // 최근 속도: 통계가 몇 분 늦게 반영되므로 3분 전까지 끝난 가장 최근 15분 묶음으로 잰다
+  const done = [...buckets.keys()].filter(t => t + 15 * MIN <= at - 3 * MIN).sort((a, b) => b - a)[0];
+  return { used, recentPerMin: done == null ? 0 : buckets.get(done) / 15 };
 }
+
+export async function checkUsage(env, at) {
+  try {
+    const dayStart = Math.floor(at / 864e5) * 864e5, dayEnd = dayStart + 864e5;
+    const [{ used, recentPerMin }, prevRow] = await Promise.all([
+      usageToday(env, dayStart, at),
+      env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY).first()
+    ]);
+    const prev = prevRow ? JSON.parse(prevRow.body).refreshSec : REFRESH_MIN;
+    const left = DAILY_LIMIT * (1 - RESERVE) - used, minutesLeft = (dayEnd - at) / MIN;
+    const demandAt1m = recentPerMin * (prev / 60);   // 모두 1분 간격으로 받는다면 분당 요청 수
+    const allowed = left / minutesLeft;              // 초기화까지 남은 한도를 고르게 쓸 때 분당 요청 수
+    let refreshSec = left <= 0 ? REFRESH_MAX : Math.ceil(60 * demandAt1m / allowed / 30) * 30;
+    refreshSec = Math.min(REFRESH_MAX, Math.max(REFRESH_MIN, refreshSec || REFRESH_MIN));
+    const body = JSON.stringify({ refreshSec, used, recentPerMin: Math.round(recentPerMin), checkedAt: at });
+    await env.DB.prepare("INSERT INTO blob (k, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at")
+      .bind(USAGE_KEY, body, at).run();
+  } catch (e) {
+    console.error("사용량 확인 실패", e && e.message);   // 실패하면 마지막 값을 그대로 쓴다
+  }
+}
+
+// 저장된 갱신 간격. 1시간 넘게 갱신이 안 됐으면(통계 조회 실패 등) 120초로 무난하게.
+function refreshFrom(row, now) {
+  if (!row) return REFRESH_MIN;
+  try { const u = JSON.parse(row.body); return now - u.checkedAt > HOUR ? 120 : u.refreshSec; } catch { return REFRESH_MIN; }
+}
+
+/* ───────── API ───────── */
 const error = (status, msg) => new Response(JSON.stringify({ error: msg }), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 
-async function blobs(env, keys) {
-  const { results } = await env.DB.prepare(`SELECT body FROM blob WHERE k IN (${keys.map(() => "?").join(",")})`).bind(...keys).all();
-  return results;
+// keys: 조각 키 목록, withDays: 하루 조각(d:) 전부 포함 여부
+async function respond(env, now, keys, withDays) {
+  const where = (withDays ? "(k >= 'd:' AND k < 'd;') OR " : "") + `k IN (${keys.map(() => "?").join(",")})`;
+  const [blobs, meta] = await env.DB.batch([
+    env.DB.prepare(`SELECT body FROM blob WHERE ${where}`).bind(...keys),
+    env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY)
+  ]);
+  const body = blobs.results.map(r => r.body).join("");
+  const refreshSec = refreshFrom(meta.results[0], now);
+  return new Response(`{"now":${now},"sample":${SAMPLE},"refreshSec":${refreshSec},"lines":[${body.slice(0, -1)}]}`, {
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=30" }
+  });
 }
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(collect(env, Math.round(event.scheduledTime / MIN) * MIN));
+    const at = Math.round(event.scheduledTime / MIN) * MIN;
+    ctx.waitUntil(collect(env, at));
+    if (env.CF_API_TOKEN && env.CF_ACCOUNT_ID && at % (5 * MIN) === 2 * MIN) ctx.waitUntil(checkUsage(env, at));
   },
 
   async fetch(req, env) {
@@ -78,19 +142,15 @@ export default {
     const url = new URL(req.url), now = Date.now();
     try {
       switch (url.pathname) {
-        case "/api/latest":
-          return json(await blobs(env, [hourKey(now), hourKey(now - HOUR)]), now, 30);
-        case "/api/live": {
-          const keys = [dayKey(now)];
+        // 처음 열 때 한 번: 지난 날짜들의 5분 간격 + 최근 8시간의 1분 간격
+        case "/api/init": {
+          const keys = [];
           for (let i = 0; i < HOUR_KEEP; i++) keys.push(hourKey(now - i * HOUR));
-          return json(await blobs(env, keys), now, 30);
+          return await respond(env, now, keys, true);
         }
-        case "/api/history": {
-          const before = url.searchParams.get("before") || "";
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(before)) return error(400, "before=YYYY-MM-DD 가 필요합니다");
-          const { results } = await env.DB.prepare("SELECT body FROM blob WHERE k >= 'd:' AND k < ? ORDER BY k").bind("d:" + before).all();
-          return json(results, now, 600);
-        }
+        // 이후 갱신마다: 최근 2시간의 1분 간격
+        case "/api/latest":
+          return await respond(env, now, [hourKey(now), hourKey(now - HOUR)], false);
         default:
           return error(404, "없는 주소입니다");
       }
