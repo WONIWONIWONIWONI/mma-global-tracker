@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MMA 글로벌 TOP10 트래커</title>
+<meta name="description" content="MMA 2026 글로벌 TOP10 멜론·베리즈 투표 비공식 트래커">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>try { const t = localStorage.getItem("mma-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>MMA 2026 글로벌 TOP10<small>멜론 · 베리즈 투표 트래커</small></h1>
+      <div class="tools">
+        <button class="btn" id="copyBtn" type="button">요약 복사</button>
+        <button class="btn" id="themeBtn" type="button">다크</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="화면 선택">
+      <button class="tab" role="tab" id="tab-global" data-view="global" style="--tabc:var(--ink)"><span class="dot"></span>글로벌 TOP10 순위</button>
+      <button class="tab" role="tab" id="tab-melon" data-view="melon" style="--tabc:var(--melon)"><span class="dot"></span>멜론 투표</button>
+      <button class="tab" role="tab" id="tab-berriz" data-view="berriz" style="--tabc:var(--berriz)"><span class="dot"></span>베리즈 투표</button>
+    </nav>
+  </header>
+  <div class="status" id="status">불러오는 중…</div>
+  <main>
+    <section class="view" id="view-global" aria-labelledby="tab-global"><p class="empty">불러오는 중…</p></section>
+    <section class="view" id="view-melon" style="--site:var(--melon)" aria-labelledby="tab-melon" hidden></section>
+    <section class="view" id="view-berriz" style="--site:var(--berriz)" aria-labelledby="tab-berriz" hidden></section>
+  </main>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

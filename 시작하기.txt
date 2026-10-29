@@ -1,0 +1,15 @@
+MMA 글로벌 TOP10 트래커 - Claude Code에서 이어가기
+
+1. Claude 데스크톱 앱에서 Code 탭을 엽니다.
+2. 작업 폴더로 이 폴더(mma-global-tracker)를 선택합니다.
+3. 첫 메시지로 아래 문장을 그대로 보내세요.
+
+   CLAUDE.md를 읽고 "첫 작업 순서 제안"의 1번부터 진행해 줘. 내가 해야 할 일이 있으면 단계별로 알려줘.
+
+Claude Code가 이 폴더의 CLAUDE.md를 자동으로 읽기 때문에, 지금까지 정한 내용(점수 규칙, 3개 탭 구성, Cloudflare 구성)을 다시 설명하지 않아도 됩니다.
+
+미리 해 두면 좋은 것
+- Cloudflare 무료 계정 만들기: https://dash.cloudflare.com/sign-up
+- GitHub 로그인 상태 확인
+
+draft/tracker-draft.html 을 더블클릭하면 지금까지 만든 화면 초안을 브라우저로 볼 수 있습니다.

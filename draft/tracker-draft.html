@@ -1,0 +1,628 @@
+<title>MMA 글로벌 TOP10 트래커</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 레이아웃: 상단 고정 탭 + 수집 상태줄, 본문은 한 열의 패널을 세로로 쌓는 점수판 구성 */
+:root{
+  --bg:#f1f4f1; --surface:#ffffff; --sunk:#e7ece8; --ink:#121a15; --muted:#59665e; --line:#d8dfda;
+  --melon:#00a03a; --berriz:#d3600c; --up:#d23434; --down:#2160cc; --base:#b4beb7; --pin:#fff3c4;
+  --site:var(--ink);
+  --f-disp:"Barlow Condensed","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1210; --surface:#141b17; --sunk:#1b241f; --ink:#e6ece7; --muted:#93a198; --line:#27312b;
+  --melon:#38d86b; --berriz:#ff8b40; --up:#ff6464; --down:#62a4ff; --base:#4b5750; --pin:#302b12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1210; --surface:#141b17; --sunk:#1b241f; --ink:#e6ece7; --muted:#93a198; --line:#27312b;
+  --melon:#38d86b; --berriz:#ff8b40; --up:#ff6464; --down:#62a4ff; --base:#4b5750; --pin:#302b12; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--site);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.up{color:var(--up)} .down{color:var(--down)}
+
+/* 상단 */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 0;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand h1{margin:0;font-family:var(--f-disp);font-weight:700;font-size:26px;letter-spacing:.01em;line-height:1.1}
+.brand h1 small{font-family:var(--f-body);font-weight:500;font-size:13px;color:var(--muted);margin-left:8px;letter-spacing:0}
+.tools{display:flex;gap:6px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.tab{border:0;background:none;padding:9px 14px 10px;font-weight:600;font-size:15px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--tabc,var(--ink))}
+.tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--tabc,var(--ink));vertical-align:1px}
+.status{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding-block:9px;font-size:12.5px;color:var(--muted)}
+.status b{color:var(--ink);font-weight:600}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--melon);box-shadow:0 0 0 0 var(--melon);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--melon) 60%,transparent)}100%{box-shadow:0 0 0 7px transparent}}
+@media (prefers-reduced-motion:reduce){.live i{animation:none}}
+.sample{border:1px dashed var(--muted);border-radius:4px;padding:1px 7px;color:var(--ink)}
+
+main{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+.view{display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;margin-bottom:12px}
+.phead h2{margin:0;font-size:17px;font-weight:700;text-wrap:balance}
+.phead p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--sunk)}
+.seg button{border:0;background:none;padding:5px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--site)}
+select{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;font-size:13px}
+.lbl{font-size:12px;color:var(--muted)}
+
+/* 요약 카드 */
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.card .k{font-size:12px;color:var(--muted);letter-spacing:.02em}
+.card .v{font-family:var(--f-disp);font-weight:700;font-size:34px;line-height:1.05}
+.card .v small{font-size:16px;font-weight:600;color:var(--muted);margin-left:4px}
+.card .n{font-size:15px;font-weight:600}
+.card .s{font-size:12.5px;color:var(--muted)}
+.card select{margin-top:2px;align-self:flex-start}
+@media (max-width:760px){.cards{grid-template-columns:minmax(0,1fr)}}
+
+/* 순위표 */
+.tscroll{overflow-x:auto;margin:0 -18px;padding:0 18px}
+table{border-collapse:collapse;width:100%}
+.rank th{font-size:11.5px;font-weight:600;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.rank td{padding:8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;vertical-align:middle}
+.rank th:nth-child(-n+3),.rank td:nth-child(-n+3){text-align:left}
+.rank td.r{font-family:var(--f-disp);font-weight:700;font-size:20px;width:34px}
+.rank td.ch{font-size:12px;width:44px}
+.rank td.nm{font-weight:600;min-width:120px}
+.rank .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
+.rank tr.pin td{background:var(--pin)}
+.rank tr.cut td{padding:0;border-bottom:0;height:0;position:relative}
+.rank tr.cut td::after{content:"";position:absolute;left:0;right:0;top:-1px;border-top:2px solid var(--ink)}
+.rank tr.cut span{position:absolute;right:0;top:-10px;background:var(--ink);color:var(--surface);font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.06em;z-index:1}
+.tot{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.tot b{font-family:var(--f-num);font-size:15px;min-width:52px}
+.stack{display:flex;width:96px;height:8px;border-radius:2px;overflow:hidden;background:var(--sunk)}
+.stack i{display:block;height:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.note{font-size:12px;color:var(--muted);margin:10px 0 0}
+
+/* 사이트 순위 카드 */
+.duel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr);gap:12px}
+.duel .card .v{font-size:38px}
+.duel .gap{border-style:dashed;justify-content:center;text-align:center;align-items:center}
+@media (max-width:760px){.duel{grid-template-columns:minmax(0,1fr)}}
+.list td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.list th{font-size:11.5px;color:var(--muted);font-weight:600;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)}
+.list td:nth-child(2),.list th:nth-child(2),.list td:first-child,.list th:first-child{text-align:left}
+details summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:4px 0;color:var(--muted)}
+details[open] summary{margin-bottom:6px}
+
+/* 칩 */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.chip[aria-pressed="true"]{color:var(--ink);border-color:var(--c);box-shadow:inset 3px 0 0 var(--c)}
+
+/* 차트 */
+.chart{position:relative;width:100%;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font-family:var(--f-num);font-size:10.5px;fill:var(--muted)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12px;border-radius:6px;padding:6px 8px;white-space:nowrap;z-index:2;line-height:1.45}
+.tip .num{font-size:11.5px}
+.empty{color:var(--muted);padding:30px 0;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.stats div{background:var(--surface);padding:9px 12px}
+.stats .k{font-size:11.5px;color:var(--muted)}
+.stats .v{font-family:var(--f-num);font-size:16px;font-weight:500}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* 증가량 표 */
+.heat td,.heat th{padding:5px 8px;text-align:right;font-size:12.5px;white-space:nowrap;border-bottom:1px solid var(--line)}
+.heat th{color:var(--muted);font-weight:600;font-size:11.5px}
+.heat td:first-child,.heat th:first-child{text-align:left;color:var(--muted)}
+.heat tr.now td{font-weight:600}
+.bars{display:flex;flex-direction:column;gap:6px}
+.bar{display:grid;grid-template-columns:120px minmax(0,1fr) 92px;gap:10px;align-items:center;font-size:13px}
+.bar .t{height:14px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.bar .t i{display:block;height:100%;background:var(--site);border-radius:3px}
+.bar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar.pin .nm{font-weight:700}
+@media (max-width:480px){.bar{grid-template-columns:88px minmax(0,1fr) 78px}}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.two{grid-template-columns:minmax(0,1fr)}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>MMA 2026 글로벌 TOP10<small>멜론 · 베리즈 투표 트래커</small></h1>
+      <div class="tools">
+        <button class="btn" id="copyBtn" type="button">요약 복사</button>
+        <button class="btn" id="themeBtn" type="button">다크</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="화면 선택">
+      <button class="tab" role="tab" id="tab-global" data-view="global" style="--tabc:var(--ink)"><span class="dot"></span>글로벌 TOP10 순위</button>
+      <button class="tab" role="tab" id="tab-melon" data-view="melon" style="--tabc:var(--melon)"><span class="dot"></span>멜론 투표</button>
+      <button class="tab" role="tab" id="tab-berriz" data-view="berriz" style="--tabc:var(--berriz)"><span class="dot"></span>베리즈 투표</button>
+    </nav>
+  </header>
+  <div class="status" id="status"></div>
+  <main>
+    <section class="view" id="view-global" aria-labelledby="tab-global"></section>
+    <section class="view" id="view-melon" style="--site:var(--melon)" aria-labelledby="tab-melon" hidden></section>
+    <section class="view" id="view-berriz" style="--site:var(--berriz)" aria-labelledby="tab-berriz" hidden></section>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ───────── 기본 상수와 도우미 ───────── */
+const MIN = 60e3, HOUR = 3600e3, DAY = 864e5, KST = 9 * HOUR;
+const $ = s => document.querySelector(s);
+const fmt = n => n == null || !isFinite(n) ? "—" : Math.round(n).toLocaleString("ko-KR");
+const signed = n => (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n));
+const man = v => { const a = Math.abs(v), s = v < 0 ? "−" : ""; return a >= 1e4 ? s + (a / 1e4).toFixed(a >= 1e6 ? 0 : 1) + "만" : s + fmt(a); };
+const sum = a => a.reduce((x, y) => x + y, 0);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const kd = ts => new Date(ts + KST);
+const pad = n => String(n).padStart(2, "0");
+const hm = ts => { const d = kd(ts); return pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()); };
+const hms = ts => { const d = kd(ts); return hm(ts) + ":" + pad(d.getUTCSeconds()); };
+const md = ts => { const d = kd(ts); return (d.getUTCMonth() + 1) + "/" + d.getUTCDate(); };
+const mdK = ts => { const d = kd(ts); return (d.getUTCMonth() + 1) + "월 " + d.getUTCDate() + "일"; };
+const midnight = ts => Math.floor((ts + KST) / DAY) * DAY - KST;
+
+/* 후보와 음원 점수 (공지 표 기준, 상위 20팀) */
+const CANDS = [
+  ["BTS", 60.00], ["aespa", 59.28], ["BIGBANG", 54.90], ["IVE", 54.19], ["SEVENTEEN", 50.13],
+  ["CORTIS", 48.36], ["ILLIT", 47.73], ["TXT", 46.70], ["G-Dragon", 46.49], ["NCT WISH", 46.09],
+  ["RIIZE", 44.66], ["TWICE", 43.14], ["Hearts2Hearts", 42.86], ["LESSERAFIM", 42.82], ["BOYNEXTDOOR", 42.37],
+  ["i-dle", 42.05], ["Stray Kids", 41.80], ["IU", 39.80], ["RESCENE", 39.66], ["BLACKPINK", 38.92]
+].map(([name, chart], k) => ({ k, name, chart }));
+const NC = CANDS.length;
+const CUTOFF = 10;             // TOP10 경계
+const SITE_MAX = 10;           // 사이트별 만점
+const PALETTE = ["#e0542c", "#2d7ad6", "#159f6c", "#9a57cf", "#e09b00", "#0e9fae", "#d1336b", "#7a6a55"];
+
+/* ───────── 예시 데이터 생성 (실제 수집기로 교체될 부분) ───────── */
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const diurnal = ts => { const h = ((ts + KST) / HOUR) % 24; return 0.35 + 0.65 * (0.5 + 0.5 * Math.cos((h - 22) / 24 * 2 * Math.PI)); };
+
+const NOW0 = Date.now();
+const START = midnight(NOW0) - 2 * DAY + 12 * HOUR;   // 예시: 이틀 전 12:00 투표 시작
+const CAP = Math.floor((NOW0 - START) / MIN) + 2 + 60 * 24 * 14;
+
+const SITES = {
+  melon: { key: "melon", name: "멜론", lag: 2000, seed: 11,
+    rates: [820, 860, 300, 520, 610, 450, 480, 400, 280, 380, 350, 330, 300, 260, 290, 310, 420, 360, 270, 240] },
+  berriz: { key: "berriz", name: "베리즈", lag: 7000, seed: 29,
+    rates: [95, 10, 8, 22, 40, 70, 66, 88, 6, 12, 18, 9, 20, 72, 80, 14, 25, 15, 34, 7] }
+};
+for (const s of Object.values(SITES)) {
+  s.cum = CANDS.map(() => new Float64Array(CAP));
+  s.len = 1; s.r = rng(s.seed); s.burst = new Array(NC).fill(0);
+  s.phase = CANDS.map(() => s.r() * 6.283); s.obsAt = START;
+}
+function step(s) {
+  const i = s.len, ts = START + (i - 1) * MIN, di = diurnal(ts);
+  for (let k = 0; k < NC; k++) {
+    if (s.burst[k] > 0) s.burst[k]--; else if (s.r() < 0.0006) s.burst[k] = 15 + Math.floor(s.r() * 30);
+    const drift = 1 + 0.22 * Math.sin(i / (240 + k * 31) + s.phase[k]);
+    const v = s.rates[k] * di * drift * (s.burst[k] > 0 ? 2.6 : 1) * (0.75 + 0.5 * s.r());
+    s.cum[k][i] = s.cum[k][i - 1] + Math.round(v);
+  }
+  s.len++;
+}
+for (const s of Object.values(SITES)) {
+  const n = Math.floor((NOW0 - s.lag - START) / MIN);
+  while (s.len <= n) step(s);
+  s.obsAt = START + (s.len - 1) * MIN + s.lag;
+}
+const MEL = SITES.melon, BER = SITES.berriz;
+
+/* ───────── 데이터 조회 ───────── */
+const tOf = i => START + i * MIN;
+const last = s => s.len - 1;
+const idxOf = (s, ts) => clamp(Math.round((ts - START) / MIN), 0, last(s));
+const valsAt = (s, i) => CANDS.map(c => s.cum[c.k][i]);
+const lastTime = s => tOf(last(s));
+
+/* 순위·점수 계산: 각 사이트 1위 득표수 대비 비율 × 10점 */
+function standings(iM, iB) {
+  const m = valsAt(MEL, iM), b = valsAt(BER, iB);
+  const mMax = Math.max(...m), bMax = Math.max(...b);
+  const rows = CANDS.map(c => {
+    const ms = mMax ? SITE_MAX * m[c.k] / mMax : 0, bs = bMax ? SITE_MAX * b[c.k] / bMax : 0;
+    return { ...c, mv: m[c.k], bv: b[c.k], ms, bs, total: c.chart + ms + bs };
+  }).sort((a, b) => b.total - a.total);
+  rows.forEach((r, i) => r.rank = i + 1);
+  return { rows, mMax, bMax };
+}
+function siteOrder(s, i) { const v = valsAt(s, i); return CANDS.map(c => c.k).sort((a, b) => v[b] - v[a]); }
+
+/* 집계 날짜(KST) 목록 */
+function dates() { const out = []; for (let d = midnight(START); d <= midnight(Date.now()); d += DAY) out.push(d); return out; }
+
+/* ───────── 화면 상태 ───────── */
+const PIN_DEFAULT = CANDS.find(c => c.name === "RESCENE").k;
+const G = { snap: "live", trend: "total", range: "all", pin: PIN_DEFAULT, sel: null };
+const ST = {};
+for (const key of ["melon", "berriz"]) ST[key] = { mode: "votes", range: "24h", sel: null, a: null, b: null, iv: "30m", hDate: null, dDate: null };
+let VIEW = "global";
+const openState = {};
+
+/* ───────── 차트 ───────── */
+function niceTicks(min, max, n = 5) {
+  const span = max - min || 1, raw = span / n, mag = 10 ** Math.floor(Math.log10(raw)), f = raw / mag;
+  const st = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  const lo = Math.floor(min / st) * st, hi = Math.ceil(max / st) * st, t = [];
+  for (let v = lo; v <= hi + st / 2; v += st) t.push(+v.toFixed(10));
+  return { lo, hi, t };
+}
+function timeTicks(a, b) {
+  const span = (b - a) / MIN, steps = [30, 60, 120, 180, 360, 720, 1440, 2880];
+  const st = steps.find(s => span / s <= 6) || 2880, ms = st * MIN, out = [];
+  for (let t = Math.ceil((a + KST) / ms) * ms - KST; t <= b; t += ms) out.push(t);
+  return { out, label: t => (st >= 1440 || kd(t).getUTCHours() === 0) ? md(t) : hm(t) };
+}
+const charts = new Map();
+
+function frame(el, H, yLo, yHi, yFmt, xA, xB, L = 58) {
+  const W = Math.max(280, el.clientWidth || 700), R = 14, T = 12, B = 26;
+  const nt = niceTicks(yLo, yHi, H > 220 ? 5 : 4);
+  const x = t => L + (t - xA) / ((xB - xA) || 1) * (W - L - R);
+  const y = v => T + (nt.hi - v) / ((nt.hi - nt.lo) || 1) * (H - T - B);
+  let g = "";
+  for (const v of nt.t) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 8}" y="${y(v) + 3.5}" text-anchor="end">${yFmt(v)}</text>`;
+  if (nt.lo < 0 && nt.hi > 0) g += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--muted)" stroke-width="1"/>`;
+  const tt = timeTicks(xA, xB);
+  for (const t of tt.out) g += `<line x1="${x(t)}" x2="${x(t)}" y1="${H - B}" y2="${H - B + 4}" stroke="var(--muted)"/><text x="${x(t)}" y="${H - 8}" text-anchor="middle">${tt.label(t)}</text>`;
+  return { W, H, L, R, T, B, x, y, g };
+}
+function attachTip(el, fr, onX) {
+  const svg = el.querySelector("svg"), tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; el.appendChild(tip);
+  const cross = svg.querySelector(".cross");
+  svg.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * fr.W;
+    if (px < fr.L || px > fr.W - fr.R) { tip.hidden = true; cross.setAttribute("opacity", 0); return; }
+    const res = onX(px); if (!res) return;
+    cross.setAttribute("x1", res.x); cross.setAttribute("x2", res.x); cross.setAttribute("opacity", 1);
+    tip.innerHTML = res.html; tip.hidden = false;
+    const left = res.x / fr.W * r.width, tw = tip.offsetWidth;
+    tip.style.left = (left + 12 + tw > r.width ? left - tw - 12 : left + 12) + "px"; tip.style.top = "6px";
+  });
+  svg.addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("opacity", 0); });
+}
+
+function drawLine(el, { series, yFmt, tipFmt, H = 260 }) {
+  const pts = series.flatMap(s => s.pts);
+  if (!pts.length) { el.innerHTML = '<p class="empty">표시할 관측이 없습니다.</p>'; return; }
+  let lo = Infinity, hi = -Infinity, xA = Infinity, xB = -Infinity;
+  for (const [t, v] of pts) { if (v < lo) lo = v; if (v > hi) hi = v; if (t < xA) xA = t; if (t > xB) xB = t; }
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const p = (hi - lo) * 0.06, fr = frame(el, H, lo - p, hi + p, yFmt, xA, xB);
+  let body = fr.g;
+  for (const s of series) {
+    if (!s.pts.length) continue;
+    const d = s.pts.map(([t, v], i) => (i ? "L" : "M") + fr.x(t).toFixed(1) + " " + fr.y(v).toFixed(1)).join("");
+    const [et, ev] = s.pts[s.pts.length - 1];
+    body += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.w || 1.6}" stroke-linejoin="round"/><circle cx="${fr.x(et)}" cy="${fr.y(ev)}" r="3.2" fill="${s.color}"/>`;
+  }
+  body += `<line class="cross" y1="${fr.T}" y2="${fr.H - fr.B}" stroke="var(--muted)" stroke-dasharray="3 3" opacity="0"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${fr.W} ${fr.H}" role="img" aria-label="추이 그래프">${body}</svg>`;
+  const ref = series.find(s => s.pts.length).pts;
+  attachTip(el, fr, px => {
+    const t = xA + (px - fr.L) / (fr.W - fr.L - fr.R) * (xB - xA);
+    let j = 0, best = Infinity; ref.forEach((q, i) => { const d = Math.abs(q[0] - t); if (d < best) { best = d; j = i; } });
+    const tt = ref[j][0];
+    const rows = series.map(s => { const q = s.pts.find(q => q[0] === tt); return q ? `<div><span style="color:${s.color}">●</span> ${s.name} <span class="num">${(tipFmt || yFmt)(q[1])}</span></div>` : ""; }).join("");
+    return { x: fr.x(tt), html: `<div class="num">${md(tt)} ${hm(tt)}</div>${rows}` };
+  });
+}
+
+function drawCandles(el, cs, H = 260) {
+  if (!cs.length) { el.innerHTML = '<p class="empty">표시할 관측이 없습니다.</p>'; return; }
+  let lo = Infinity, hi = -Infinity; for (const c of cs) { lo = Math.min(lo, c.l); hi = Math.max(hi, c.h); }
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const p = (hi - lo) * 0.06, xA = cs[0].t0, xB = cs[cs.length - 1].t1;
+  const fr = frame(el, H, lo - p, hi + p, man, xA, xB);
+  const bw = (fr.W - fr.L - fr.R) / cs.length, w = Math.max(1, bw * 0.64);
+  let body = fr.g;
+  cs.forEach((c, i) => {
+    const cx = fr.L + bw * (i + 0.5), col = c.c >= c.o ? "var(--up)" : "var(--down)";
+    const y1 = fr.y(Math.max(c.o, c.c)), y2 = fr.y(Math.min(c.o, c.c));
+    body += `<line x1="${cx}" x2="${cx}" y1="${fr.y(c.h)}" y2="${fr.y(c.l)}" stroke="${col}" stroke-width="1"/><rect x="${cx - w / 2}" y="${y1}" width="${w}" height="${Math.max(1, y2 - y1)}" fill="${col}"/>`;
+  });
+  body += `<line class="cross" y1="${fr.T}" y2="${fr.H - fr.B}" stroke="var(--muted)" stroke-dasharray="3 3" opacity="0"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${fr.W} ${fr.H}" role="img" aria-label="표차 캔들 차트">${body}</svg>`;
+  attachTip(el, fr, px => {
+    const i = clamp(Math.floor((px - fr.L) / bw), 0, cs.length - 1), c = cs[i], d = c.c - c.o;
+    return { x: fr.L + bw * (i + 0.5), html: `<div class="num">${md(c.t0)} ${hm(c.t0)}–${hm(c.t1)}</div><div>시가 <span class="num">${fmt(c.o)}</span> · 종가 <span class="num">${fmt(c.c)}</span></div><div>고가 <span class="num">${fmt(c.h)}</span> · 저가 <span class="num">${fmt(c.l)}</span></div><div>변화 <span class="num">${signed(d)}</span></div>` };
+  });
+}
+
+/* ───────── 글로벌 TOP10 ───────── */
+function needVotes(gap, votes, max, score) {
+  if (votes === max && max > 0) return '<span class="muted">1위 · 만점</span>';
+  if (SITE_MAX - score <= gap) return '<span class="muted">단독 불가</span>';
+  return "+" + fmt(Math.ceil(gap * max / SITE_MAX)) + "표";
+}
+function globalTrend() {
+  const n = Math.min(last(MEL), last(BER)), stepN = 10, ts = [], tot = CANDS.map(() => []), g12 = [], gcut = [];
+  for (let i = 0; ; i += stepN) {
+    const j = Math.min(i, n), st = standings(j, j);
+    ts.push(tOf(j)); st.rows.forEach(r => tot[r.k].push(r.total));
+    g12.push(st.rows[0].total - st.rows[1].total); gcut.push(st.rows[CUTOFF - 1].total - st.rows[CUTOFF].total);
+    if (j === n) break;
+  }
+  return { ts, tot, g12, gcut };
+}
+function renderGlobal() {
+  const v = $("#view-global"), now = Date.now(), snaps = dates().slice(1).filter(d => d > START && d <= now);
+  if (G.snap !== "live" && !snaps.includes(G.snap)) G.snap = "live";
+  let iM, iB, pM = null, pB = null, cmp, when;
+  if (G.snap === "live") {
+    iM = last(MEL); iB = last(BER); when = "실시간 · 멜론 " + hm(lastTime(MEL)) + " / 베리즈 " + hm(lastTime(BER)) + " 관측";
+    const m0 = midnight(now); if (m0 > START) { pM = idxOf(MEL, m0); pB = idxOf(BER, m0); cmp = "오늘 00시 대비"; }
+  } else {
+    iM = idxOf(MEL, G.snap); iB = idxOf(BER, G.snap); when = mdK(G.snap - 1) + " 마감 · " + md(G.snap) + " 00:00 관측";
+    const p = G.snap - DAY; if (p > START) { pM = idxOf(MEL, p); pB = idxOf(BER, p); cmp = "전날 마감 대비"; }
+  }
+  const st = standings(iM, iB), prev = pM != null ? standings(pM, pB) : null;
+  const prevRank = {}; if (prev) prev.rows.forEach(r => prevRank[r.k] = r.rank);
+  const R = st.rows, pinRow = R.find(r => r.k === G.pin);
+  if (!G.sel) G.sel = new Set([R[0].k, R[1].k, R[CUTOFF - 1].k, R[CUTOFF].k, G.pin]);
+
+  const pinNote = pinRow.rank <= CUTOFF
+    ? (pinRow.rank === 1 ? "선두" : `${pinRow.rank - 1}위와 ${(R[pinRow.rank - 2].total - pinRow.total).toFixed(2)}점 차`) + ` · 11위와 ${(pinRow.total - R[CUTOFF].total).toFixed(2)}점 차`
+    : `10위 ${R[CUTOFF - 1].name}와 ${(R[CUTOFF - 1].total - pinRow.total).toFixed(2)}점 차`;
+  const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${c.name}</option>`).join("");
+
+  let rows = "";
+  R.forEach((r, i) => {
+    let ch = '<span class="muted">–</span>';
+    if (prev) { const d = prevRank[r.k] - r.rank; ch = d > 0 ? `<span class="up">▲${d}</span>` : d < 0 ? `<span class="down">▼${-d}</span>` : ch; }
+    const ahead = i ? R[i - 1] : null, gap = ahead ? ahead.total - r.total : 0;
+    rows += `<tr class="${r.k === G.pin ? "pin" : ""}">
+      <td class="r">${r.rank}</td><td class="ch">${ch}</td><td class="nm">${r.name}</td>
+      <td class="num">${r.chart.toFixed(2)}</td>
+      <td class="num">${r.ms.toFixed(2)}<span class="sub">${fmt(r.mv)}표</span></td>
+      <td class="num">${r.bs.toFixed(2)}<span class="sub">${fmt(r.bv)}표</span></td>
+      <td><div class="tot"><span class="stack" aria-hidden="true"><i style="width:${r.chart / 80 * 100}%;background:var(--base)"></i><i style="width:${r.ms / 80 * 100}%;background:var(--melon)"></i><i style="width:${r.bs / 80 * 100}%;background:var(--berriz)"></i></span><b>${r.total.toFixed(2)}</b></div></td>
+      <td class="num">${ahead ? "−" + gap.toFixed(2) : '<span class="muted">선두</span>'}</td>
+      <td class="num">${ahead ? needVotes(gap, r.mv, st.mMax, r.ms) : "—"}</td>
+      <td class="num">${ahead ? needVotes(gap, r.bv, st.bMax, r.bs) : "—"}</td></tr>`;
+    if (r.rank === CUTOFF) rows += `<tr class="cut" aria-hidden="true"><td colspan="10"><span>TOP 10</span></td></tr>`;
+  });
+
+  v.innerHTML = `
+  <div class="cards">
+    <div class="card"><span class="k">1위 (잠정)</span><span class="n">${R[0].name}</span><span class="v">${R[0].total.toFixed(2)}<small>/ 80</small></span><span class="s">2위 ${R[1].name}보다 ${(R[0].total - R[1].total).toFixed(2)}점 앞섬</span></div>
+    <div class="card"><span class="k">TOP10 컷</span><span class="n">10위 ${R[CUTOFF - 1].name} · 11위 ${R[CUTOFF].name}</span><span class="v">${(R[CUTOFF - 1].total - R[CUTOFF].total).toFixed(2)}<small>점 차</small></span><span class="s">10위 ${R[CUTOFF - 1].total.toFixed(2)}점 · 11위 ${R[CUTOFF].total.toFixed(2)}점</span></div>
+    <div class="card"><span class="k">관심 후보</span><span class="n">${pinRow.name} · ${pinRow.rank}위</span><span class="v">${pinRow.total.toFixed(2)}<small>/ 80</small></span><span class="s">${pinNote}</span>
+      <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>${G.snap === "live" ? "실시간 잠정 순위" : mdK(G.snap - 1) + " 마감 순위"}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
+      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("")}</select></div></div>
+    <div class="tscroll"><table class="rank">
+      <thead><tr><th>순위</th><th>변동</th><th>후보</th><th>음원</th><th>멜론</th><th>베리즈</th><th>합산</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="legend"><span><i style="background:var(--base)"></i>음원 점수(고정)</span><span><i style="background:var(--melon)"></i>멜론 투표 10점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 10점</span></div>
+    <p class="note">심사 점수 20점은 공개되지 않아 빠져 있습니다. 합산은 80점 만점 기준의 잠정 순위입니다. 투표 점수는 각 사이트 1위 득표수 대비 비율로 10점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>점수 추이</h2><p>10분 간격 관측으로 다시 계산한 합산 점수</p></div>
+      <div class="ctrl">
+        <span class="seg">${[["total", "합산 점수"], ["g12", "1·2위 차"], ["cut", "10·11위 차"]].map(([k, l]) => `<button type="button" data-g="trend" data-v="${k}" aria-pressed="${G.trend === k}">${l}</button>`).join("")}</span>
+        <span class="seg">${[["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-g="range" data-v="${k}" aria-pressed="${G.range === k}">${l}</button>`).join("")}</span>
+      </div></div>
+    ${G.trend === "total" ? `<div class="chips">${chipsHTML(R.map(r => r.k), G.sel, "gsel")}</div>` : ""}
+    <div class="chart" id="g-chart"></div>
+  </div>`;
+
+  const tr = globalTrend(), from = G.range === "24h" ? Date.now() - DAY : 0;
+  const keep = tr.ts.map((t, i) => t >= from ? i : -1).filter(i => i >= 0);
+  let series;
+  if (G.trend === "total") { const sel = [...G.sel]; series = sel.map((k, n) => ({ name: CANDS[k].name, color: PALETTE[n % PALETTE.length], w: k === G.pin ? 2.4 : 1.6, pts: keep.map(i => [tr.ts[i], tr.tot[k][i]]) })); }
+  else { const arr = G.trend === "g12" ? tr.g12 : tr.gcut; series = [{ name: G.trend === "g12" ? "1·2위 점수차" : "10·11위 점수차", color: "var(--ink)", w: 2, pts: keep.map(i => [tr.ts[i], arr[i]]) }]; }
+  drawLine($("#g-chart"), { series, yFmt: v => v.toFixed(G.trend === "total" ? 0 : 1), tipFmt: v => v.toFixed(2) + "점" });
+}
+function chipsHTML(order, sel, act) {
+  const s = [...sel];
+  return order.map(k => { const n = s.indexOf(k); return `<button type="button" class="chip" data-chip="${act}" data-k="${k}" aria-pressed="${n >= 0}" style="--c:${n >= 0 ? PALETTE[n % PALETTE.length] : "var(--line)"}">${CANDS[k].name}</button>`; }).join("");
+}
+
+/* ───────── 사이트별 화면 ───────── */
+function gapAt(s, a, b, i) { return s.cum[a][i] - s.cum[b][i]; }
+function buildCandles(s, a, b, iv) {
+  const bucket = { "5m": 5, "30m": 30, "1h": 60, "1d": 1440 }[iv] * MIN, maxN = { "5m": 72, "30m": 96, "1h": 120, "1d": 60 }[iv];
+  const out = []; let cur = null, prevC = gapAt(s, a, b, 0), key = null;
+  for (let i = 1; i <= last(s); i++) {
+    const t = tOf(i), g = gapAt(s, a, b, i), kk = Math.floor((t + KST - 1) / bucket);
+    if (kk !== key) { if (cur) out.push(cur); key = kk; const t0 = kk * bucket - KST; cur = { t0, t1: t0 + bucket, o: prevC, h: Math.max(prevC, g), l: Math.min(prevC, g), c: g }; }
+    else { cur.h = Math.max(cur.h, g); cur.l = Math.min(cur.l, g); cur.c = g; }
+    prevC = g;
+  }
+  if (cur) out.push(cur);
+  return out.slice(-maxN);
+}
+function incr(s, k, a, b) { const now = lastTime(s); if (b <= START || a >= now) return null; return s.cum[k][idxOf(s, Math.min(b, now))] - s.cum[k][idxOf(s, Math.max(a, START))]; }
+
+function renderSite(key) {
+  const s = SITES[key], S = ST[key], v = $("#view-" + key), i = last(s);
+  const vals = valsAt(s, i), total = sum(vals), order = siteOrder(s, i);
+  const h1 = valsAt(s, Math.max(0, i - 60)), m1 = valsAt(s, Math.max(0, i - 1));
+  if (!S.sel) S.sel = new Set([order[0], order[1], G.pin]);
+  if (S.a == null) { S.a = order[0]; S.b = order[1]; }
+  const ds = dates(); if (S.hDate == null || !ds.includes(S.hDate)) S.hDate = ds[ds.length - 1]; if (S.dDate == null || !ds.includes(S.dDate)) S.dDate = ds[ds.length - 1];
+  const share = k => total ? vals[k] / total * 100 : 0;
+  const top = order[0], sec = order[1], gap = vals[top] - vals[sec], gapH = gap - (h1[top] - h1[sec]);
+  const card = (k, r) => `<div class="card"><span class="k">${r}위</span><span class="n">${CANDS[k].name}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(vals[k] - m1[k])} · 1시간 ${signed(vals[k] - h1[k])}</span></div>`;
+
+  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${CANDS[k].name}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num">${r ? "−" + fmt(vals[order[r - 1]] - vals[k]) : "—"}</td><td class="num">${signed(vals[k] - h1[k])}</td><td class="num">${(SITE_MAX * vals[k] / (vals[top] || 1)).toFixed(2)}</td></tr>`).join("");
+
+  /* 시간대별 */
+  const cols = [...new Set([...order.slice(0, 6), G.pin])];
+  const D = S.hDate, now = lastTime(s);
+  let hmax = 1; const hrs = [];
+  for (let h = 0; h < 24; h++) { const a = D + h * HOUR, b = a + HOUR, row = cols.map(k => incr(s, k, a, b)); row.forEach(x => { if (x != null && x > hmax) hmax = x; }); hrs.push({ h, a, b, row }); }
+  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => `<tr class="${r.b > now && r.a <= now ? "now" : ""}"><td class="num">${pad(r.h)}시${r.b > now && r.a <= now ? " · 진행 중" : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${fmt(x)}</td>`).join("")}</tr>`).join("");
+
+  /* 일별 */
+  const dayInc = d => CANDS.map(c => incr(s, c.k, d, d + DAY));
+  const dd = dayInc(S.dDate), dOrder = CANDS.map(c => c.k).filter(k => dd[k] != null).sort((a, b) => dd[b] - dd[a]);
+  const dShow = [...new Set([...dOrder.slice(0, 10), G.pin])].filter(k => dd[k] != null), dMax = Math.max(1, ...dShow.map(k => dd[k]));
+  const dayState = d => d < START && d + DAY > START ? "첫날 · " + hm(START) + " 시작" : d + DAY > now ? "진행 중 · " + hm(now) + "까지" : "마감";
+  const dayTable = ds.slice().reverse().map(d => { const r = dayInc(d); return `<tr><td>${mdK(d)}<span class="muted"> · ${dayState(d)}</span></td>${cols.map(k => `<td class="num">${fmt(r[k])}</td>`).join("")}<td class="num">${fmt(sum(r.map(x => x || 0)))}</td></tr>`; }).join("");
+  const dateOpts = sel => ds.slice().reverse().map(d => `<option value="${d}"${d === sel ? " selected" : ""}>${mdK(d)}</option>`).join("");
+  const candOpts = sel => order.map(k => `<option value="${k}"${k === sel ? " selected" : ""}>${CANDS[k].name}</option>`).join("");
+
+  const ga = s.cum[S.a], gb = s.cum[S.b], gNow = ga[i] - gb[i];
+  const dG = m => { const j = i - m; return j < 0 ? null : gNow - (ga[j] - gb[j]); };
+  const gStat = m => { const x = dG(m); return x == null ? "—" : `<span class="${x > 0 ? "up" : x < 0 ? "down" : ""}">${signed(x)}</span>`; };
+  const pinOpen = openState[key + "-list"] ? " open" : "";
+
+  v.innerHTML = `
+  <div class="duel">${card(top, 1)}
+    <div class="card gap"><span class="k">1·2위 표차</span><span class="v num" style="font-family:var(--f-disp)">${fmt(gap)}</span><span class="s">1시간 전보다 <span class="${gapH > 0 ? "up" : gapH < 0 ? "down" : ""}">${signed(gapH)}</span>${gapH > 0 ? " 벌어짐" : gapH < 0 ? " 좁혀짐" : ""}</span></div>
+    ${card(sec, 2)}</div>
+  <div class="panel">
+    <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 10점 환산</p></div></div>
+    <details id="${key}-list"${pinOpen}><summary>${NC}팀 전체 보기</summary>
+    <div class="tscroll"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>득표 추이</h2><p>${S.mode === "votes" ? "누적 득표수" : "전체 득표 대비 점유율"} · 1분 관측</p></div>
+      <div class="ctrl">
+        <span class="seg">${[["votes", "득표수"], ["share", "득표율"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="mode" data-v="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join("")}</span>
+        <span class="seg">${[["6h", "6시간"], ["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="range" data-v="${k}" aria-pressed="${S.range === k}">${l}</button>`).join("")}</span>
+      </div></div>
+    <div class="chips">${chipsHTML(order, S.sel, key)}</div>
+    <div class="chart" id="${key}-line"></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>표차 분석</h2><p>앞 후보 득표 − 뒤 후보 득표. 빨강은 격차 확대, 파랑은 격차 축소</p></div>
+      <div class="ctrl">
+        <select id="${key}-a" aria-label="앞 후보">${candOpts(S.a)}</select><span class="lbl">−</span><select id="${key}-b" aria-label="뒤 후보">${candOpts(S.b)}</select>
+        <span class="seg">${[["5m", "5분"], ["30m", "30분"], ["1h", "1시간"], ["1d", "일"]].map(([k, l]) => `<button type="button" data-s="${key}" data-f="iv" data-v="${k}" aria-pressed="${S.iv === k}">${l}봉</button>`).join("")}</span>
+      </div></div>
+    <div class="stats"><div><div class="k">현재 표차</div><div class="v">${signed(gNow)}</div></div><div><div class="k">1시간 변화</div><div class="v">${gStat(60)}</div></div><div><div class="k">4시간 변화</div><div class="v">${gStat(240)}</div></div><div><div class="k">24시간 변화</div><div class="v">${gStat(1440)}</div></div></div>
+    <div class="chart" id="${key}-candle"></div>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <div class="phead"><div><h2>시간대별 증가량</h2><p>상위 6팀과 관심 후보 · KST</p></div><div class="ctrl"><select id="${key}-hd" aria-label="날짜">${dateOpts(S.hDate)}</select></div></div>
+      <div class="tscroll"><table class="heat"><thead><tr><th>시간</th>${cols.map(k => `<th>${CANDS[k].name}</th>`).join("")}</tr></thead><tbody>${heatRows || '<tr><td colspan="9">관측 없음</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><div><h2>일일 득표량</h2><p>${dayState(S.dDate)} · 00시 기준</p></div><div class="ctrl"><select id="${key}-dd" aria-label="날짜">${dateOpts(S.dDate)}</select></div></div>
+      <div class="bars">${dShow.map(k => `<div class="bar${k === G.pin ? " pin" : ""}"><span class="nm">${CANDS[k].name}</span><span class="t"><i style="width:${dd[k] / dMax * 100}%"></i></span><span class="num" style="text-align:right">${fmt(dd[k])}</span></div>`).join("")}</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>날짜별 마감 기록</h2><p>각 날짜 00시부터 다음 날 00시까지의 증가량</p></div></div>
+    <div class="tscroll"><table class="heat"><thead><tr><th>날짜</th>${cols.map(k => `<th>${CANDS[k].name}</th>`).join("")}<th>전체</th></tr></thead><tbody>${dayTable}</tbody></table></div>
+  </div>`;
+
+  /* 추이 차트 */
+  const span = { "6h": 360, "24h": 1440, all: i }[S.range], stp = S.range === "6h" ? 1 : S.range === "24h" ? 5 : 15;
+  const idx = []; for (let j = Math.max(0, i - span); j < i; j += stp) idx.push(j); idx.push(i);
+  const tot = idx.map(j => { let t = 0; for (let k = 0; k < NC; k++) t += s.cum[k][j]; return t; });
+  const sel = [...S.sel];
+  drawLine($("#" + key + "-line"), {
+    series: sel.map((k, n) => ({ name: CANDS[k].name, color: PALETTE[n % PALETTE.length], w: k === G.pin ? 2.4 : 1.6, pts: idx.map((j, q) => [tOf(j), S.mode === "votes" ? s.cum[k][j] : (tot[q] ? s.cum[k][j] / tot[q] * 100 : 0)]) })),
+    yFmt: S.mode === "votes" ? man : x => x.toFixed(1) + "%", tipFmt: S.mode === "votes" ? fmt : x => x.toFixed(2) + "%"
+  });
+  drawCandles($("#" + key + "-candle"), buildCandles(s, S.a, S.b, S.iv));
+}
+
+/* ───────── 상태줄 · 렌더 · 이벤트 ───────── */
+function renderStatus() {
+  const now = Date.now(), next = Math.min(...Object.values(SITES).map(s => START + s.len * MIN + s.lag));
+  const lagS = Math.abs(BER.obsAt - MEL.obsAt) / 1000;
+  $("#status").innerHTML = `<span class="live"><i></i><b>1분 간격 수집</b></span>
+    <span>멜론 <b class="num">${hms(MEL.obsAt)}</b></span><span>베리즈 <b class="num">${hms(BER.obsAt)}</b></span>
+    <span>사이트 간 시각차 <b class="num">${lagS.toFixed(0)}초</b></span><span>다음 수집 <b class="num">${Math.max(0, Math.ceil((next - now) / 1000))}초</b></span>
+    <span class="sample">예시 데이터 · 투표 주소 공개 전 화면 초안</span>`;
+}
+function render() { if (VIEW === "global") renderGlobal(); else renderSite(VIEW); }
+function show(view) {
+  VIEW = ["global", "melon", "berriz"].includes(view) ? view : "global";
+  for (const k of ["global", "melon", "berriz"]) { $("#view-" + k).hidden = k !== VIEW; $("#tab-" + k).setAttribute("aria-selected", k === VIEW); }
+  try { if (location.hash !== "#" + VIEW) history.replaceState(null, "", "#" + VIEW); } catch (e) {}
+  render();
+}
+document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+
+document.querySelector("main").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.g) { G[b.dataset.g] = b.dataset.v; renderGlobal(); return; }
+  if (b.dataset.s) { ST[b.dataset.s][b.dataset.f] = b.dataset.v; renderSite(b.dataset.s); return; }
+  if (b.dataset.chip) {
+    const set = b.dataset.chip === "gsel" ? G.sel : ST[b.dataset.chip].sel, k = +b.dataset.k;
+    if (set.has(k)) { if (set.size > 1) set.delete(k); } else if (set.size < 8) set.add(k);
+    render();
+  }
+});
+document.querySelector("main").addEventListener("change", e => {
+  const el = e.target, id = el.id;
+  if (id === "snapSel") { G.snap = el.value === "live" ? "live" : +el.value; renderGlobal(); return; }
+  if (id === "pinSel") { G.pin = +el.value; G.sel.add(G.pin); for (const k in ST) ST[k].sel && ST[k].sel.add(G.pin); renderGlobal(); return; }
+  const m = id.match(/^(melon|berriz)-(a|b|hd|dd)$/); if (!m) return;
+  const S = ST[m[1]], f = { a: "a", b: "b", hd: "hDate", dd: "dDate" }[m[2]]; S[f] = +el.value; renderSite(m[1]);
+});
+document.addEventListener("toggle", e => { if (e.target.id) openState[e.target.id] = e.target.open; }, true);
+
+/* 실시간 수집 흉내: 각 사이트가 매분 정해진 지연 뒤 새 관측을 추가 */
+setInterval(() => {
+  const now = Date.now(); let changed = false;
+  for (const s of Object.values(SITES)) { while (now >= START + s.len * MIN + s.lag) { step(s); s.obsAt = now; changed = true; } }
+  renderStatus(); if (changed) render();
+}, 1000);
+
+let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150); }).observe(document.querySelector("main"));
+
+/* 테마 */
+function isDark() { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
+function syncThemeBtn() { $("#themeBtn").textContent = isDark() ? "일반" : "다크"; }
+try { const t = localStorage.getItem("mma-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+$("#themeBtn").addEventListener("click", () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("mma-theme", t); } catch (e) {} syncThemeBtn(); });
+syncThemeBtn();
+
+/* 요약 복사 */
+function summary() {
+  if (VIEW === "global") {
+    const st = standings(last(MEL), last(BER));
+    return [`MMA 2026 글로벌 TOP10 잠정 순위 (${md(Date.now())} ${hm(lastTime(MEL))}, 심사 20점 미반영)`,
+      ...st.rows.slice(0, CUTOFF).map(r => `${r.rank}. ${r.name} ${r.total.toFixed(2)} (음원 ${r.chart.toFixed(2)} + 멜론 ${r.ms.toFixed(2)} + 베리즈 ${r.bs.toFixed(2)})`),
+      `컷: 10위와 11위 ${(st.rows[CUTOFF - 1].total - st.rows[CUTOFF].total).toFixed(2)}점 차`].join("\n");
+  }
+  const s = SITES[VIEW], i = last(s), v = valsAt(s, i), o = siteOrder(s, i), t = sum(v);
+  return [`${s.name} 투표 현황 (${md(lastTime(s))} ${hm(lastTime(s))})`, ...o.slice(0, 5).map((k, r) => `${r + 1}. ${CANDS[k].name} ${fmt(v[k])}표 (${(v[k] / t * 100).toFixed(2)}%)`), `1·2위 표차 ${fmt(v[o[0]] - v[o[1]])}표`].join("\n");
+}
+function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 1800); }
+$("#copyBtn").addEventListener("click", () => {
+  const text = summary();
+  navigator.clipboard.writeText(text).then(() => toast("요약을 복사했습니다"), () => {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;height:160px;z-index:30";
+    document.body.appendChild(ta); ta.select(); toast("자동 복사가 막혀 있습니다. 선택된 글을 직접 복사해 주세요"); setTimeout(() => ta.remove(), 8000);
+  });
+});
+
+renderStatus();
+show(location.hash.slice(1) || "global");
+</script>
