@@ -118,7 +118,7 @@ function renderGlobal() {
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     cards = `<div class="cards">
-      <div class="card"><span class="k">1위 (잠정)</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${f2(R[0].total - R[1].total)}점 앞섬</span></div>
+      <div class="card first"><span class="k">1위 (잠정)</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${f2(R[0].total - R[1].total)}점 앞섬</span></div>
       <div class="card"><span class="k">TOP10 컷</span><span class="n">10위 ${esc(R[CUT - 1].name)} · 11위 ${esc(R[CUT].name)}</span><span class="v">${f2(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span><span class="s">10위 ${f2(R[CUT - 1].total)}점 · 11위 ${f2(R[CUT].total)}점</span></div>
       <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
         <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
@@ -237,7 +237,7 @@ function renderSite(key) {
   if (!ds.includes(S.dDate)) S.dDate = ds[ds.length - 1];
   const top = order[0], sec = order[1], gap = vals[top] - vals[sec];
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
-  const card = (k, r) => `<div class="card"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
+  const card = (k, r) => `<div class="card${r === 1 ? " first" : ""}"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
 
   // 전체 현황: 넓은 화면은 표, 휴대폰은 한 줄 목록(순위 · 이름/점유율·1시간 증가·점수 · 득표수/앞 순위와 차)
   const gapPrev = r => r ? "−" + fmt(vals[order[r - 1]] - vals[order[r]]) : "1위";

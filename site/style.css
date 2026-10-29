@@ -9,29 +9,41 @@
   --bg-art:none;
   --shadow:0 1px 2px rgb(15 23 18 / .05);
   --head-bg:color-mix(in srgb,var(--bg) 90%,transparent);
+  /* 1위 카드, 카드 위 색 띠, 눌린 버튼, 안내 배지 */
+  --first-bg:var(--surface); --first-line:var(--line); --card-line-op:.6;
+  --pressed-bg:var(--surface); --pressed-ink:var(--ink);
+  --badge-ink:var(--ink); --badge-line:var(--muted);
   --site:var(--ink);
   --f-disp:"Barlow Condensed","IBM Plex Sans KR",system-ui,sans-serif;
   --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
-/* 다크: 초록기 없는 흑연색 바탕, 채도를 낮춘 사이트 색, 은은한 위쪽 빛과 층 구분(두 블록은 같은 값) */
+/* 다크: 이전 트래커(mma-vote-tracker) 다크 모드 색을 따른다. 짙은 자주빛 남색 바탕, 분홍빛 흰 글자,
+   라벤더 회색 보조 글자, 분홍 강조, 라임·민트·호박색 팀 색, 1위 카드는 자주→남색 그라데이션.
+   멜론은 민트, 베리즈는 호박색. 두 블록은 같은 값이다. */
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0e1013; --surface:#16191e; --sunk:#1e2229; --ink:#e6e8eb; --muted:#8e96a2; --line:#262b33;
-  --melon:#3fbf7f; --berriz:#e08a4f; --up:#ef6f6c; --down:#6aa1e8; --base:#4a525e; --pin:#2a2517;
-  --cut:#d6b25e; --cut-ink:#16191e;
-  --c1:#f08a6c; --c2:#6ea3ea; --c3:#4cbf8f; --c4:#b494ea; --c5:#e3b55b; --c6:#4fbfc8; --c7:#ec7fa6; --c8:#a8998a;
-  --heat:26;
-  --bg-art:radial-gradient(900px 420px at 12% -160px,rgb(63 191 127 / .08),transparent 70%),radial-gradient(800px 380px at 92% -180px,rgb(224 138 79 / .07),transparent 70%);
-  --shadow:inset 0 1px 0 rgb(255 255 255 / .035),0 10px 30px -14px rgb(0 0 0 / .7);
+  --bg:#100e19; --surface:#191725; --sunk:#211b30; --ink:#f5f0f6; --muted:#aaa3b8; --line:#332e45;
+  --melon:#83d9b5; --berriz:#ffc176; --up:#ff789a; --down:#9cbcff; --base:#877b95; --pin:#41223c;
+  --cut:#ff7594; --cut-ink:#100e19;
+  --c1:#e6ff54; --c2:#ff789a; --c3:#4fc8e0; --c4:#83d9b5; --c5:#ffc06c; --c6:#9cbcff; --c7:#ed94df; --c8:#aaa3b8;
+  --heat:24;
+  --bg-art:none;
+  --shadow:inset 0 1px 0 rgb(255 255 255 / .03);
+  --first-bg:linear-gradient(135deg,#4a243d,#211a31); --first-line:#97445f; --card-line-op:0;
+  --pressed-bg:#41223c; --pressed-ink:#ff7594; --pressed-shadow:none;
+  --badge-ink:#ff7594; --badge-line:#97445f;
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0e1013; --surface:#16191e; --sunk:#1e2229; --ink:#e6e8eb; --muted:#8e96a2; --line:#262b33;
-  --melon:#3fbf7f; --berriz:#e08a4f; --up:#ef6f6c; --down:#6aa1e8; --base:#4a525e; --pin:#2a2517;
-  --cut:#d6b25e; --cut-ink:#16191e;
-  --c1:#f08a6c; --c2:#6ea3ea; --c3:#4cbf8f; --c4:#b494ea; --c5:#e3b55b; --c6:#4fbfc8; --c7:#ec7fa6; --c8:#a8998a;
-  --heat:26;
-  --bg-art:radial-gradient(900px 420px at 12% -160px,rgb(63 191 127 / .08),transparent 70%),radial-gradient(800px 380px at 92% -180px,rgb(224 138 79 / .07),transparent 70%);
-  --shadow:inset 0 1px 0 rgb(255 255 255 / .035),0 10px 30px -14px rgb(0 0 0 / .7);
+  --bg:#100e19; --surface:#191725; --sunk:#211b30; --ink:#f5f0f6; --muted:#aaa3b8; --line:#332e45;
+  --melon:#83d9b5; --berriz:#ffc176; --up:#ff789a; --down:#9cbcff; --base:#877b95; --pin:#41223c;
+  --cut:#ff7594; --cut-ink:#100e19;
+  --c1:#e6ff54; --c2:#ff789a; --c3:#4fc8e0; --c4:#83d9b5; --c5:#ffc06c; --c6:#9cbcff; --c7:#ed94df; --c8:#aaa3b8;
+  --heat:24;
+  --bg-art:none;
+  --shadow:inset 0 1px 0 rgb(255 255 255 / .03);
+  --first-bg:linear-gradient(135deg,#4a243d,#211a31); --first-line:#97445f; --card-line-op:0;
+  --pressed-bg:#41223c; --pressed-ink:#ff7594; --pressed-shadow:none;
+  --badge-ink:#ff7594; --badge-line:#97445f;
   color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -67,7 +79,7 @@ button,select{font:inherit;color:inherit}
 .live i{width:7px;height:7px;border-radius:50%;background:var(--melon);box-shadow:0 0 0 0 var(--melon);animation:pulse 2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--melon) 60%,transparent)}100%{box-shadow:0 0 0 7px transparent}}
 @media (prefers-reduced-motion:reduce){.live i{animation:none}}
-.sample{border:1px dashed var(--muted);border-radius:4px;padding:1px 7px;color:var(--ink)}
+.sample{border:1px dashed var(--badge-line);border-radius:4px;padding:1px 7px;color:var(--badge-ink)}
 
 main{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
 .view{display:flex;flex-direction:column;gap:16px}
@@ -79,7 +91,7 @@ main{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
 .ctrl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--sunk)}
 .seg button{border:0;background:none;padding:5px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:inset 0 -2px 0 var(--site)}
+.seg button[aria-pressed="true"]{background:var(--pressed-bg);color:var(--pressed-ink);font-weight:500;box-shadow:var(--pressed-shadow,inset 0 -2px 0 var(--site))}
 select{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;font-size:13px}
 .lbl{font-size:12px;color:var(--muted)}
 
@@ -87,7 +99,9 @@ select{border:1px solid var(--line);background:var(--surface);border-radius:6px;
 .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 /* 카드 위쪽의 얇은 색 띠: 글로벌은 멜론→베리즈, 사이트 탭은 그 사이트 색 */
-.card::before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--melon),var(--berriz));opacity:.6}
+.card::before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--melon),var(--berriz));opacity:var(--card-line-op)}
+/* 1위 카드 강조(다크: 이전 트래커처럼 자주→남색 그라데이션과 분홍 테두리) */
+.card.first{background:var(--first-bg);border-color:var(--first-line)}
 .duel .card::before{background:var(--site)}
 .duel .gap::before{display:none}
 .card .k{font-size:12px;color:var(--muted);letter-spacing:.02em}
