@@ -253,14 +253,16 @@ function renderSite(key) {
   };
 
   /* 시간대별 · 날짜별 표: 넓은 화면은 상위 6팀 + 관심 후보, 휴대폰은 1·2위 + 관심 후보만 */
-  const narrow = matchMedia("(max-width: 640px)").matches;
-  const cols = [...new Set([...order.slice(0, narrow ? 2 : 6), G.pin])];
-  const colsNote = narrow ? "1·2위와 관심 후보" : "상위 6팀과 관심 후보";
+  // 표가 패널 폭 안에 들어오도록 화면 폭에 따라 보여 줄 팀 수를 정한다(옆으로 스크롤하지 않게)
+  const narrow = matchMedia("(max-width: 640px)").matches, medium = !narrow && matchMedia("(max-width: 900px)").matches;
+  const topN = narrow ? 2 : medium ? 4 : 6;
+  const cols = [...new Set([...order.slice(0, topN), G.pin])];
+  const colsNote = narrow ? "1·2위와 관심 후보" : `상위 ${topN}팀과 관심 후보`;
   const big = x => x == null ? "—" : narrow && Math.abs(x) >= 1e5 ? man(x) : fmt(x);
   const D = S.hDate;
   let hmax = 1; const hrs = [];
   for (let h = 0; h < 24; h++) { const a = D + h * HOUR, b = a + HOUR, row = cols.map(k => incr(k, a, b)); row.forEach(x => { if (x != null && x > hmax) hmax = x; }); hrs.push({ h, a, b, row }); }
-  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur && !narrow ? " · 진행 중" : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${big(x)}</td>`).join("")}</tr>`; }).join("");
+  const heatRows = hrs.filter(r => r.row.some(x => x != null)).map(r => { const cur = r.b > now && r.a <= now; return `<tr class="${cur ? "now" : ""}"><td class="num">${pad(r.h)}시${cur ? '<small class="muted dl">진행 중</small>' : ""}</td>${r.row.map(x => x == null ? "<td>—</td>" : `<td class="num" style="background:color-mix(in srgb,var(--site) ${Math.round(x / hmax * 42)}%,transparent)">${big(x)}</td>`).join("")}</tr>`; }).join("");
 
   /* 일별 */
   const dayInc = d => CANDS.map(c => incr(c.k, d, d + DAY));
@@ -268,7 +270,7 @@ function renderSite(key) {
   const dShow = [...new Set([...dOrder.slice(0, 10), G.pin])].filter(k => dd[k] != null), dMax = Math.max(1, ...dShow.map(k => dd[k]));
   const dayState = d => d < start && d + DAY > start ? "첫날 · " + hm(start) + " 시작" : d + DAY > now ? "진행 중 · " + hm(now) + "까지" : "마감";
   const dayShort = d => d < start && d + DAY > start ? "첫날" : d + DAY > now ? "진행 중" : "마감";
-  const dayTable = ds.slice().reverse().map(d => { const r = dayInc(d); return `<tr><td>${narrow ? `${md(d)}<small class="muted dl">${dayShort(d)}</small>` : `${mdK(d)}<span class="muted"> · ${dayState(d)}</span>`}</td>${cols.map(k => `<td class="num">${big(r[k])}</td>`).join("")}<td class="num">${big(sum(r))}</td></tr>`; }).join("");
+  const dayTable = ds.slice().reverse().map(d => { const r = dayInc(d); return `<tr><td>${narrow ? `${md(d)}<small class="muted dl">${dayShort(d)}</small>` : `${mdK(d)}<small class="muted dl">${dayState(d)}</small>`}</td>${cols.map(k => `<td class="num">${big(r[k])}</td>`).join("")}<td class="num">${big(sum(r))}</td></tr>`; }).join("");
   const dateOpts = sel => ds.slice().reverse().map(d => `<option value="${d}"${d === sel ? " selected" : ""}>${mdK(d)}</option>`).join("");
   const candOpts = sel => order.map(k => `<option value="${k}"${k === sel ? " selected" : ""}>${nameOf(k)}</option>`).join("");
 
@@ -306,19 +308,17 @@ function renderSite(key) {
     <div class="stats"><div><div class="k">현재 표차</div><div class="v">${signed(gNow)}</div></div><div><div class="k">1시간 변화</div><div class="v">${gStat(60)}</div></div><div><div class="k">4시간 변화</div><div class="v">${gStat(240)}</div></div><div><div class="k">24시간 변화</div><div class="v">${gStat(1440)}</div></div></div>
     <div class="chart" id="${key}-candle"></div>
   </div>
-  <div class="two">
-    <div class="panel">
-      <div class="phead"><div><h2>시간대별 증가량</h2><p>${colsNote} · KST</p></div><div class="ctrl"><select id="${key}-hd" aria-label="날짜">${dateOpts(S.hDate)}</select></div></div>
-      <div class="tscroll"><table class="heat"><thead><tr><th>시간</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}</tr></thead><tbody>${heatRows || '<tr><td colspan="9">관측 없음</td></tr>'}</tbody></table></div>
-    </div>
-    <div class="panel">
-      <div class="phead"><div><h2>일일 득표량</h2><p>${dayState(S.dDate)} · 00시 기준</p></div><div class="ctrl"><select id="${key}-dd" aria-label="날짜">${dateOpts(S.dDate)}</select></div></div>
-      <div class="bars">${dShow.map(k => `<div class="bar${k === G.pin ? " pin" : ""}"><span class="nm">${nameOf(k)}</span><span class="t"><i style="width:${dd[k] / dMax * 100}%"></i></span><span class="num" style="text-align:right">${fmt(dd[k])}</span></div>`).join("")}</div>
-    </div>
+  <div class="panel">
+    <div class="phead"><div><h2>시간대별 증가량</h2><p>${colsNote} · KST</p></div><div class="ctrl"><select id="${key}-hd" aria-label="날짜">${dateOpts(S.hDate)}</select></div></div>
+    <table class="heat fit"><thead><tr><th>시간</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}</tr></thead><tbody>${heatRows || `<tr><td colspan="${cols.length + 1}">관측 없음</td></tr>`}</tbody></table>
+  </div>
+  <div class="panel">
+    <div class="phead"><div><h2>일일 득표량</h2><p>${dayState(S.dDate)} · 00시 기준</p></div><div class="ctrl"><select id="${key}-dd" aria-label="날짜">${dateOpts(S.dDate)}</select></div></div>
+    <div class="bars">${dShow.map(k => `<div class="bar${k === G.pin ? " pin" : ""}"><span class="nm">${nameOf(k)}</span><span class="t"><i style="width:${dd[k] / dMax * 100}%"></i></span><span class="num" style="text-align:right">${fmt(dd[k])}</span></div>`).join("")}</div>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>날짜별 마감 기록</h2><p>${colsNote} · 각 날짜 00시부터 다음 날 00시까지의 증가량</p></div></div>
-    <div class="tscroll"><table class="heat"><thead><tr><th>날짜</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}<th>전체</th></tr></thead><tbody>${dayTable}</tbody></table></div>
+    <table class="heat fit day"><thead><tr><th>날짜</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}<th>전체</th></tr></thead><tbody>${dayTable}</tbody></table>
   </div>`;
 
   /* 추이 차트: 6시간은 1분, 24시간은 5분, 전체는 15분 간격 점 */

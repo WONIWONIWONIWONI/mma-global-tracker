@@ -193,6 +193,12 @@ details[open] summary{margin-bottom:6px}
 .site-m .tt b{display:block;font-size:15px}
 .site-m .tt small{font-size:11px;color:var(--muted)}
 .heat th{max-width:96px;overflow:hidden;text-overflow:ellipsis}
+/* 패널 폭에 맞추는 표: 칸을 고르게 나누고 긴 팀 이름은 말줄임 */
+.heat.fit{width:100%;table-layout:fixed}
+.heat.fit th,.heat.fit td{overflow:hidden;text-overflow:ellipsis;max-width:none}
+.heat.fit th:first-child,.heat.fit td:first-child{width:5.5em}
+.heat.fit.day th:first-child,.heat.fit.day td:first-child{width:10em}
+@media (max-width:640px){.heat.fit th:first-child,.heat.fit td:first-child,.heat.fit.day th:first-child,.heat.fit.day td:first-child{width:4.2em}}
 .heat .dl{display:block;font-size:11px;line-height:1.2}
 
 /* 휴대폰: 상단을 고정하지 않고(스크롤할 때 떠 있지 않게), 표 대신 요약 목록, 덜 중요한 칸 숨김 */
