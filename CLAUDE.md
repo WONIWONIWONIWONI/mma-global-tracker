@@ -96,11 +96,10 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 
 ## 현재 상태 (2026-10-29, 1~3번 작업 완료)
 
-- 운영 주소: https://mma-global-tracker.<계정 workers.dev 하위 도메인>.workers.dev (가짜 어댑터로 수집 중, 화면에 "예시 데이터" 표시)
-  실제 주소는 `npx wrangler deploy` 출력에서 확인한다.
+- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (가짜 어댑터로 수집 중, 화면에 "예시 데이터" 표시)
 - Cloudflare 무료 플랜. D1 `mma-tracker`(APAC, id는 wrangler.jsonc). wrangler 로그인 완료.
 - 개인정보: 이 저장소는 공개다. 사용자의 이메일, 이메일에서 나온 아이디, 계정 ID를 파일·커밋에 적지 않는다.
-  workers.dev 하위 도메인은 원래 이메일 아이디였고 대시보드에서 바꾸기로 했다(API 변경은 409로 거부됨).
+  workers.dev 하위 도메인은 원래 이메일 아이디였어서 사용자가 대시보드에서 happyapple로 바꿨다(2026-10-29).
 - 저장소: https://github.com/WONIWONIWONIWONI/mma-global-tracker (공개, main 브랜치)
 
 ## 파일 구조
