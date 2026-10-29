@@ -100,7 +100,9 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 - 미리보기: 저장소 최상위에서 `python -m http.server 8000` 후 http://localhost:8000/site/ (모듈이라 파일 더블클릭으로는 안 열림)
 - Worker 주의: 무료 플랜은 요청당 CPU 10ms. 2주치 관측을 매 요청마다 D1에서 읽어 계산하면 넘을 수 있으므로,
   Cron이 수집할 때 응답을 미리 만들어 두거나(예: D1에 최신 응답 1행) 캐시하는 방식을 3번 작업에서 정한다.
-- 이 컴퓨터에는 git, Node.js, GitHub CLI가 아직 설치되어 있지 않다(Python은 있음).
+- 저장소: https://github.com/WONIWONIWONIWONI/mma-global-tracker (공개, main 브랜치). 1·2번 작업 완료.
+- 이 컴퓨터에 git, Node.js(LTS), GitHub CLI 설치됨(winget). 새 PowerShell 창이 아니면 PATH를 다시 읽어야 한다.
+- 커밋 작성자 이메일은 GitHub noreply 주소(338686815+WONIWONIWONIWONI@users.noreply.github.com)를 쓴다.
 
 ## 참고
 
