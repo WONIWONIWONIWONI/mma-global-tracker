@@ -13,7 +13,8 @@
 //   d:<KST 날짜>             그날의 5분 간격 관측(00:05 ~ 다음 날 00:00 수집. 마지막 00:00 수집이 그날 마감값)
 //   m:usage                  요청 사용량과 화면 갱신 간격(JSON 한 덩어리, 덮어씀)
 //
-// API: /api/init(처음 1회, 전체), /api/latest(이후 갱신). 응답 {now, sample, refreshSec, lines:[관측...]}
+// API: /api/init(처음 1회: 오늘 + 지난 날짜 목록), /api/latest(이후 갱신), /history/날짜.json(끝난 날, 정적 파일이 없을 때만)
+// 응답 {now, sample, refreshSec, days?, lines:[관측...]}
 import * as melon from "./adapters/melon.js";
 import * as berriz from "./adapters/berriz.js";
 import { MIN, HOUR, KST_OFFSET } from "../site/core/time.js";
@@ -117,18 +118,32 @@ function refreshFrom(row, now) {
 /* ───────── API ───────── */
 const error = (status, msg) => new Response(JSON.stringify({ error: msg }), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 
-// keys: 조각 키 목록, withDays: 하루 조각(d:) 전부 포함 여부
+const json = (body, maxAge) => new Response(body, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${maxAge}` } });
+const joinLines = rows => rows.map(r => r.body).join("").slice(0, -1);
+const INIT_HOURS = 7;   // 처음 열 때 주는 1분 간격 구간(화면의 6시간 그래프 + 여유)
+
+// /api/init, /api/latest: 조각(keys)과 갱신 간격. withDays면 지난 날짜 목록도 준다(내용은 /history/날짜.json 으로 따로 받음).
+// 응답 크기가 투표 기간 길이와 상관없이 하루치 이하로 묶여 무료 플랜 CPU 한도(요청당 10ms)를 넘지 않는다.
 async function respond(env, now, keys, withDays) {
-  const where = (withDays ? "(k >= 'd:' AND k < 'd;') OR " : "") + `k IN (${keys.map(() => "?").join(",")})`;
-  const [blobs, meta] = await env.DB.batch([
-    env.DB.prepare(`SELECT body FROM blob WHERE ${where}`).bind(...keys),
+  const stmts = [
+    env.DB.prepare(`SELECT body FROM blob WHERE k IN (${keys.map(() => "?").join(",")})`).bind(...keys),
     env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY)
-  ]);
-  const body = blobs.results.map(r => r.body).join("");
-  const refreshSec = refreshFrom(meta.results[0], now);
-  return new Response(`{"now":${now},"sample":${SAMPLE},"refreshSec":${refreshSec},"lines":[${body.slice(0, -1)}]}`, {
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=30" }
-  });
+  ];
+  if (withDays) stmts.push(env.DB.prepare("SELECT k FROM blob WHERE k >= 'd:' AND k < ? ORDER BY k").bind(dayKey(now)));
+  const [blobs, meta, days] = await env.DB.batch(stmts);
+  const dayList = days ? `"days":${JSON.stringify(days.results.map(r => r.k.slice(2)))},` : "";
+  return json(`{"now":${now},"sample":${SAMPLE},"refreshSec":${refreshFrom(meta.results[0], now)},${dayList}"lines":[${joinLines(blobs.results)}]}`, 30);
+}
+
+// /history/YYYY-MM-DD.json: 끝난 날짜의 5분 간격 관측. 보통은 매일 밤 GitHub Actions가 만든 정적 파일이 먼저 나가고
+// (무료·무제한, 이 Worker를 거치지 않음), 아직 파일이 없을 때만 여기서 D1로 대신 답한다.
+async function history(env, now, day) {
+  if (day >= kstDate(now)) return error(404, "끝난 날짜만 있습니다");
+  const row = await env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind("d:" + day).first();
+  if (!row) return error(404, "그날 기록이 없습니다");
+  // 날짜가 막 바뀐 직후에는 마지막(00:00) 관측이 늦게 붙을 수 있어 잠깐만 캐시한다
+  const justEnded = now - (Date.parse(day + "T00:00:00+09:00") + 864e5) < 15 * MIN;
+  return json(`{"day":"${day}","lines":[${joinLines([row])}]}`, justEnded ? 120 : 86400);
 }
 
 export default {
@@ -144,11 +159,13 @@ export default {
     if (req.method !== "GET") return error(405, "GET만 지원합니다");
     const url = new URL(req.url), now = Date.now();
     try {
+      const h = url.pathname.match(/^\/history\/(\d{4}-\d{2}-\d{2})\.json$/);
+      if (h) return await history(env, now, h[1]);
       switch (url.pathname) {
-        // 처음 열 때 한 번: 지난 날짜들의 5분 간격 + 최근 8시간의 1분 간격
+        // 처음 열 때 한 번: 오늘의 5분 간격 + 최근 7시간의 1분 간격 + 지난 날짜 목록
         case "/api/init": {
-          const keys = [];
-          for (let i = 0; i < HOUR_KEEP; i++) keys.push(hourKey(now - i * HOUR));
+          const keys = [dayKey(now)];
+          for (let i = 0; i < INIT_HOURS; i++) keys.push(hourKey(now - i * HOUR));
           return await respond(env, now, keys, true);
         }
         // 이후 갱신마다: 최근 2시간의 1분 간격

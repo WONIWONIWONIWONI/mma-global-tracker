@@ -1,0 +1,56 @@
+# 30분마다 트래커 상태를 확인한다(투표 기간에만). 문제가 생기면 이슈를 열고 저장소 주인을 언급해 이메일 알림이 가게 하고,
+# 정상으로 돌아오면 이슈를 닫는다. 공개 저장소라 무료. 예약 실행은 몇 분 늦을 수 있다.
+name: Health check
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "투표 기간이 아니어도 확인"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check tracker
+        id: check
+        run: python3 scripts/health.py ${{ inputs.force && '--force' || '' }}
+      - name: Open or close the alert issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBLEM: ${{ steps.check.outputs.problem }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          LABEL="collect-alert"
+          gh label create "$LABEL" --color d73a4a --description "수집 이상 알림" --force >/dev/null
+          OPEN=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number')
+          NOW=$(TZ=Asia/Seoul date '+%m/%d %H:%M KST')
+          if [ -n "$PROBLEM" ]; then
+            if [ -z "$OPEN" ]; then
+              gh issue create --label "$LABEL" --title "수집 이상: $PROBLEM" \
+                --body "@$OWNER 트래커 상태 확인에서 문제가 발견됐습니다 ($NOW).
+
+          - $PROBLEM
+
+          사이트: https://mma-global-tracker.happyapple.workers.dev
+          정상으로 돌아오면 이 이슈는 자동으로 닫힙니다."
+            else
+              echo "이미 열린 알림 이슈 #$OPEN 이 있음"
+            fi
+          elif [ -n "$OPEN" ]; then
+            gh issue close "$OPEN" --comment "정상으로 돌아왔습니다 ($NOW)."
+          fi

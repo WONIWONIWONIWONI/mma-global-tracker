@@ -132,9 +132,19 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 - 백업(2026-10-29 적용): GitHub Actions `.github/workflows/backup.yml`이 매일 00:30 KST에 `scripts/backup.py`로
   끝난 KST 날짜의 obs 원본을 `backup/obs-YYYY-MM-DD.ndjson.gz`로 커밋한다(D1 REST 조회, D1 읽기 권한).
   공개 저장소라 Actions 무료. 예약이 늦어도 백업에는 문제없고, 빠진 날은 다음 실행에서 채운다.
+- 지난 날짜 데이터(2026-10-29 점검 후 변경): 첫 접속(/api/init)은 오늘 + 최근 7시간 + 지난 날짜 목록만 준다.
+  지난 날짜는 화면이 `/history/YYYY-MM-DD.json`으로 하루씩 받는다. 같은 백업 작업이 이 파일을 `site/history/`에 만들어
+  커밋하고 `wrangler deploy`로 정적 파일로 올린다(CF_DEPLOY_TOKEN 이 있을 때). 파일이 없으면 Worker가 D1 'd:' 조각으로
+  대신 답한다. 그래서 응답 크기가 투표 기간 길이와 무관하게 하루치 이하로 묶인다(CPU 10ms 한도 대비).
+  주의: 로컬에서 배포할 때는 먼저 `git pull`(정적 날짜 파일이 빠진 채 배포되면 Worker가 대신 답하긴 하지만 요청을 쓴다).
+- 수집 이상 알림: `.github/workflows/health.yml`이 30분마다(투표 기간만) `scripts/health.py`로 /api/latest를 확인해
+  API 오류·15분 넘은 관측·가짜 데이터면 이슈를 열고 저장소 주인을 언급(이메일 알림), 정상이면 닫는다(라벨 collect-alert).
+- 아이콘(favicon.svg/ico, apple-touch-icon.png)과 robots.txt를 정적 파일로 둬서 브라우저 자동 요청이 Worker 한도를 안 쓴다.
+  링크 미리보기: index.html의 og 태그 + `site/og.png`(1200×630). 그림은 Edge 헤드리스 스크린샷으로 만들었다.
 - 비밀값(파일에 적지 않음): Cloudflare API 토큰 하나(Account Analytics 읽기 + D1 읽기)를
   Worker 비밀값과 GitHub 저장소 비밀값에 CF_API_TOKEN 으로, 계정 ID를 CF_ACCOUNT_ID 로 각각 넣는다.
   토큰 값은 사용자가 직접 입력한다(Claude가 토큰을 받거나 입력하지 않는다).
+  배포용 토큰은 따로: GitHub 저장소 비밀값 CF_DEPLOY_TOKEN("Edit Cloudflare Workers" 템플릿 + D1 읽기). 없으면 정적 날짜 파일만 안 올라간다.
 - 투표 주소 공개 전: 사이트별 "어댑터"(원본 응답을 공통 형식으로 바꾸는 부분)는 가짜 데이터로
   두고 나머지를 완성한다. 주소가 공개되면 실제 응답을 확인해 어댑터만 채운다.
 - 원본 사이트의 약관과 요청 빈도를 지킨다(과도한 호출 금지).

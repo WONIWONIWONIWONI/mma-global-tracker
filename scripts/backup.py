@@ -1,4 +1,5 @@
-"""D1의 관측 원본(obs 표)을 KST 날짜별 파일로 백업한다. GitHub Actions(.github/workflows/backup.yml)가 하루 한 번 실행한다.
+"""D1의 관측 원본(obs 표)을 KST 날짜별 파일로 백업하고, 끝난 날짜의 화면용 정적 파일(site/history/)도 만든다.
+GitHub Actions(.github/workflows/backup.yml)가 하루 한 번 실행한다.
 
 - 파일: backup/obs-YYYY-MM-DD.ndjson.gz  (그 KST 날짜 00:00 이상 ~ 다음 날 00:00 미만에 관측된 줄)
 - 한 줄 = 관측 1회: {"source","observedAt","sourceAt","totalVotes","candidates":{후보id: 득표수}}
@@ -84,6 +85,28 @@ def main() -> None:
             time.sleep(0.5)
         day += dt.timedelta(days=1)
     print(f"새 백업 파일 {written}개")
+    make_history(first, now, dry)
+
+
+def make_history(first: dt.date, now: dt.datetime, dry: bool) -> None:
+    """끝난 날짜의 화면용 5분 간격 조각(D1 blob 'd:날짜')을 site/history/날짜.json 정적 파일로 만든다.
+    배포되면 화면이 이 파일을 받으므로 Worker 요청·CPU를 쓰지 않는다. 이미 있는 파일은 건드리지 않는다."""
+    out = ROOT / "site" / "history"
+    out.mkdir(exist_ok=True)
+    made, day = 0, first
+    while dt.datetime.combine(day + dt.timedelta(days=1), dt.time(), KST) + SETTLE <= now:
+        path = out / f"{day}.json"
+        if not path.exists():
+            rows = query("SELECT body FROM blob WHERE k = ?", (f"d:{day}",))
+            if rows and rows[0]["body"]:
+                n = rows[0]["body"].count('{"source"')
+                print(f"history {day}: {n}줄{' (미리보기)' if dry else ''}")
+                if not dry:
+                    path.write_text('{"day":"%s","lines":[%s]}' % (day, rows[0]["body"].rstrip(",")), encoding="utf-8")
+                    made += 1
+            time.sleep(0.3)
+        day += dt.timedelta(days=1)
+    print(f"새 화면용 날짜 파일 {made}개")
 
 
 if __name__ == "__main__":

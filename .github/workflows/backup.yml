@@ -1,12 +1,20 @@
-# 하루 한 번 D1 관측 원본을 backup/ 폴더에 날짜별 파일로 저장한다.
-# 공개 저장소라 GitHub Actions는 무료이고, 예약 실행이 몇 분 늦어도 백업에는 문제없다.
-# 필요한 저장소 비밀값: CF_API_TOKEN(D1 읽기), CF_ACCOUNT_ID
+# 하루 한 번(00:30 KST)
+# 1. D1 관측 원본을 backup/ 에 날짜별로 저장한다.
+# 2. 끝난 날짜의 화면용 파일을 site/history/ 에 만들고, Cloudflare에 정적 파일로 올린다(무료·무제한, Worker 요청을 쓰지 않음).
+#    올리기는 CF_DEPLOY_TOKEN 이 있을 때만 한다. 없으면 Worker가 D1에서 대신 답하므로 화면은 그대로 동작한다.
+# 공개 저장소라 GitHub Actions는 무료이고, 예약 실행이 몇 분 늦어도 문제없다.
+# 저장소 비밀값: CF_API_TOKEN(D1 읽기), CF_ACCOUNT_ID, CF_DEPLOY_TOKEN(Workers 배포, 선택)
 name: D1 backup
 
 on:
   schedule:
     - cron: "30 15 * * *"   # 매일 00:30 KST
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "새 파일이 없어도 Cloudflare에 다시 올리기"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -18,7 +26,9 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      HAS_DEPLOY_TOKEN: ${{ secrets.CF_DEPLOY_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v5
       - name: Export finished days from D1
@@ -26,14 +36,30 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: python3 scripts/backup.py
-      - name: Commit new backup files
+      - name: Commit new backup and history files
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add backup
+          git add backup site/history
           if git diff --cached --quiet; then
-            echo "새 백업 없음"
+            echo "새 파일 없음"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "Backup D1 observations"
+            git commit -m "Backup D1 observations and history files"
             git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Set up Node for publishing
+        if: env.HAS_DEPLOY_TOKEN == 'true' && (steps.commit.outputs.changed == 'true' || inputs.publish)
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Publish to Cloudflare (static history files)
+        if: env.HAS_DEPLOY_TOKEN == 'true' && (steps.commit.outputs.changed == 'true' || inputs.publish)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          npm ci
+          npx wrangler deploy
