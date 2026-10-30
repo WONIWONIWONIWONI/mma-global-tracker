@@ -122,7 +122,25 @@ function globalData() {
   return { snaps, R, prevRanks, cmp, when, hold, ratio };
 }
 
-function renderGlobal() {
+// 다시 그리는 동안 높이를 붙잡아 스크롤이 위로 튀지 않게 한다(그래프가 폭을 잴 때 잠깐 비어 페이지가 짧아짐)
+// 버튼을 눌러 다시 그릴 때는 누른 버튼이 화면의 같은 자리에 남게 맞춘다(위쪽 칸 높이가 바뀌어도 밀리지 않게).
+let anchor = null;
+const anchorOf = b => {
+  const sel = "button" + Object.entries(b.dataset).map(([k, v]) => `[data-${k.replace(/[A-Z]/g, c => "-" + c.toLowerCase())}="${CSS.escape(v)}"]`).join("");
+  return { sel, top: b.getBoundingClientRect().top };
+};
+function holdScroll(v, draw) {
+  const y = scrollY, a = anchor; anchor = null;
+  v.style.minHeight = v.offsetHeight + "px";
+  try { draw(); } finally {
+    v.style.minHeight = "";
+    if (Math.abs(scrollY - y) > 1) scrollTo(0, y);
+    const el = a && v.querySelector(a.sel);
+    if (el) { const d = el.getBoundingClientRect().top - a.top; if (Math.abs(d) > 1) scrollBy(0, d); }
+  }
+}
+function renderGlobal() { holdScroll($("#view-global"), drawGlobal); }
+function drawGlobal() {
   const v = $("#view-global"), CUT = RULES.cutoff, MAXT = RULES.provisionalMax, M2 = G.method === "2";
   const { snaps, R, prevRanks, cmp, when, hold, ratio } = globalData();
   const rx = ratio == null ? "" : ratio.toFixed(2);   // 방식 2: 베리즈 표에 곱하는 배수
@@ -273,7 +291,8 @@ function siteData(key) {
   return { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share };
 }
 
-function renderSite(key) {
+function renderSite(key) { holdScroll($("#view-" + key), () => drawSite(key)); }
+function drawSite(key) {
   const S = ST[key], v = $("#view-" + key), D0 = siteData(key);
   if (!D0) { v.innerHTML = `<div class="panel"><p class="empty">${P.sites[key].name} 관측이 아직 없습니다.</p></div>`; return; }
   const { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share } = D0;
@@ -509,6 +528,7 @@ window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 
 document.querySelector("main").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (!b.dataset.share) { anchor = anchorOf(b); queueMicrotask(() => { anchor = null; }); }
   if (b.dataset.share) { const kind = b.dataset.share; openShare(() => makeShare(kind)); return; }
   if (b.dataset.more) { const a = b.dataset.more; chipsOpen.has(a) ? chipsOpen.delete(a) : chipsOpen.add(a); render(); return; }
   if (b.dataset.g) {
