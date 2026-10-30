@@ -48,8 +48,9 @@
   Cloudflare Worker에서 정상 수집됨(10/30 10:06~).
 - 베리즈: 투표 화면 https://berriz.in/ko/vote/mma2026/ 의 공개 API
   `https://svc-api.berriz.in/service/v1/votes/mma2026/stats?languageCode=en` → data.candidates[{name, voteCount}], aggregatedAt.
-  후보 ID = 이름(영문). **Cloudflare Worker에서 요청하면 HTTP 403(거절)**. 차단을 우회하는 방법(브라우저 위장, 다른 IP 경유 등)은
-  쓰지 않는다. 해결 방법은 사용자와 정한다(10/30 미정).
+  후보 ID = 이름(영문). **Cloudflare Worker에서 요청하면 HTTP 403(거절)**. 사용자 결정(10/30)으로 이전 KGMA 트래커처럼
+  GitHub Actions에서 조회한다(아래 기술 구성). 조건: 10분 집계마다만, 정직한 User-Agent, 브라우저 위장 안 함,
+  GitHub에서도 403이 3번 연속이면 워크플로 예약을 끄고 멈춘다(다른 곳으로 옮겨 피하지 않는다).
 - 30팀과 각 사이트 ID는 config.js CANDIDATES에 있다. 예측 음원 점수가 없는 10팀은 chart: null.
 - 가짜 데이터는 10/30 10:07에 D1에서 모두 삭제했다.
 - **점검 중(10/30 사용자 요청):** 30팀 예측 음원 점수와 베리즈 해결책이 나올 때까지 글로벌 TOP10·베리즈 탭을 잠그고
@@ -117,15 +118,25 @@ LESSERAFIM 42.82, BOYNEXTDOOR 42.37, i-dle 42.05, Stray Kids 41.80, IU 39.80, RE
 ## 아직 넣지 않은 것 (다음 작업)
 
 - 이미지 공유 확장: 시간대별 증가량·일일 득표량·마감 기록 표는 아직 공유 버튼이 없다.
-- 베리즈 수집 방법(Cloudflare에서 403). 사용자와 정한 뒤 진행.
+- 베리즈 GitHub 수집: 사용자가 INGEST_TOKEN 비밀값을 Cloudflare Worker와 GitHub 저장소 양쪽에 넣어야 시작된다.
+  넣은 뒤 workflow_dispatch로 한 번 돌려 첫 저장 확인 → MAINTENANCE를 tabs ["global"], sites []로 바꿔 베리즈 탭 열기.
 - 12시간 표차 예측은 넣지 않는다(점수 구조가 달라 검증이 안 됨).
 
 ## 기술 구성 (정한 방향)
 
 GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudflare 무료 플랜을 쓴다.
 
-- 수집: Cloudflare Workers + Cron Trigger 1분 간격. 한 번 실행에 멜론·베리즈를 함께 조회.
-  KST 00시 마감값은 매분 수집의 23:59 관측으로 남으므로 스냅샷용 Cron은 따로 두지 않았다(2026-10-29 변경).
+- 수집(2026-10-30 변경):
+  - 멜론: Cloudflare Workers Cron 1분마다, 한 번 실행 안에서 0·20·40초에 세 번 조회(원본이 실시간). 실행당 CPU 1~5ms 확인.
+    0초 값만 h:/d: 조각(그래프·기록은 1분 간격 유지), 20·40초 값은 최신값 조각 `l:melon`에만(화면 응답 크기 유지).
+  - 베리즈: Cloudflare에서 403이라 GitHub Actions `.github/workflows/berriz.yml` + `scripts/berriz_collect.py`.
+    한 실행이 최대 5시간 40분 동안 10분 경계 +60초에 읽고, 새 집계가 아니면 30초 간격으로 +6분까지 재확인.
+    새 집계면 원본 응답을 POST /api/ingest/berriz(Bearer INGEST_TOKEN)로 보내고 Worker가 `berriz.parse`로 저장(같은 집계는 무시).
+    예약 7,22,37,52분은 다음 실행 대기용(concurrency 그룹 하나). 비밀값이 없으면 조용히 끝낸다(실패 메일 방지).
+  - 베리즈 관측은 집계 시각(sourceAt)을 기준 분으로 쓴다(`history.js slotOf`). 00:00 집계는 전날 마감값.
+  - 사이트별 기준은 config.js `COLLECT`(오래된 값: 멜론 3분·베리즈 20분, 빈 구간: 10분·25분, 합산 보류 시각차 25분).
+  - 화면 갱신은 여전히 최소 60초(요청 한도와 휴대폰 데이터 때문). 더 줄이면 하루 10만 요청을 빨리 쓴다.
+  KST 00시 마감값은 매분 수집의 00:00 관측으로 남으므로 스냅샷용 Cron은 따로 두지 않았다(2026-10-29 변경).
 - 저장: Cloudflare D1. 관측 1회 = 1행(후보 전체를 JSON으로 묶음). 후보별로 행을 나누면
   무료 쓰기 한도(하루 10만 행)를 넘는다. KV는 무료 쓰기가 하루 1,000회라 수집에 쓰지 않는다.
 - 데이터 형식: `{source, observedAt, sourceAt|null, totalVotes, candidates:{id: votes}}`.
@@ -168,7 +179,7 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 
 ## 현재 상태 (2026-10-29, 1~4번 작업 완료)
 
-- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (10/30부터 실제 수집. 멜론 정상, 베리즈 403으로 미수집)
+- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (10/30부터 실제 수집. 멜론 20초 정상, 베리즈는 GitHub 수집 준비됨·비밀값 등록 대기)
 - Cloudflare 무료 플랜. D1 `mma-tracker`(APAC, id는 wrangler.jsonc). wrangler 로그인 완료.
 - 개인정보: 이 저장소는 공개다. 사용자의 이메일, 이메일에서 나온 아이디, 계정 ID를 파일·커밋에 적지 않는다.
   workers.dev 하위 도메인은 원래 이메일 아이디였어서 사용자가 대시보드에서 happyapple로 바꿨다(2026-10-29).
