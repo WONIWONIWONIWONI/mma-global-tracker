@@ -180,6 +180,9 @@ details[open] summary{margin-bottom:6px}
 
 /* 칩 */
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+/* 점수 추이 1·2위 차·10·11위 차: 후보 버튼 자리를 그대로 남겨 칸 높이가 바뀌지 않게(바꿀 때 스크롤이 튀지 않게) */
+.chips.off{visibility:hidden}
+.chart + .chips{margin:12px 0 0}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
 .chip[aria-pressed="true"]{color:var(--ink);border-color:color-mix(in srgb,var(--c) 55%,var(--line));background:color-mix(in srgb,var(--c) 14%,var(--surface))}
 .chip[aria-pressed="true"]::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);margin-right:6px;vertical-align:1px}
@@ -238,6 +241,18 @@ details[open] summary{margin-bottom:6px}
 .to-top:hover{filter:brightness(1.1)}
 .to-top svg{width:20px;height:20px}
 @media (prefers-reduced-motion:reduce){.to-top{transition:none}}
+
+/* 당겨서 새로고침 표시(홈 화면 앱에서만) */
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) - 46px);z-index:30;width:40px;height:40px;border-radius:50%;
+  background:var(--surface);color:var(--muted);border:1px solid var(--line);box-shadow:0 6px 18px -6px rgb(0 0 0 / .35);
+  display:grid;place-items:center;pointer-events:none;opacity:0;transform:translate(-50%,0);transition:transform .2s,opacity .2s}
+.ptr.drag{transition:none}
+.ptr.ready{color:var(--cut)}
+.ptr svg{width:20px;height:20px}
+.ptr.spin{color:var(--cut)}
+.ptr.spin svg{animation:ptr-spin .7s linear infinite}
+@keyframes ptr-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.ptr{transition:none}.ptr.spin svg{animation:none}}
 
 /* 상태줄: 남은 초는 폭을 고정해 줄바꿈이 바뀌지 않게 */
 .cd{display:inline-block;min-width:4ch;text-align:right}

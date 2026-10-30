@@ -245,8 +245,8 @@ function drawGlobal() {
         <span class="seg">${[["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-g="range" data-v="${k}" aria-pressed="${G.range === k}">${l}</button>`).join("")}</span>
         ${shareBtn("g-trend")}
       </div></div>
-    ${G.trend === "total" ? `<div class="chips">${chipsHTML(R ? R.map(r => r.k) : CANDS.map(c => c.k), G.sel, "gsel")}</div>` : ""}
     <div class="chart" id="g-chart"></div>
+    <div class="chips${G.trend === "total" ? "" : " off"}"${G.trend === "total" ? "" : ' aria-hidden="true"'}>${chipsHTML(R ? R.map(r => r.k) : CANDS.map(c => c.k), G.sel, "gsel")}</div>
   </div>`;
 
   const T = M2 && P.trend2 ? P.trend2 : P.trend, lastT = T.t[T.t.length - 1], from = G.range === "24h" ? lastT - DAY : -Infinity;
@@ -587,6 +587,41 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150
     setTimeout(() => { if (scrollY > 0) scrollTo(0, 0); }, 900);
   });
   update();
+}
+
+/* 당겨서 새로고침: 홈 화면 앱(웹앱)으로 열면 브라우저 기능이 없어서 직접 만든다. 맨 위에서 아래로 끌었다 놓으면 새로고침.
+   일반 브라우저에서는 브라우저 자체 기능이 있으니 켜지 않는다(?ptr 를 붙이면 시험용으로 켜짐). */
+{
+  const app = matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true;
+  if (app || /[?&]ptr(=|&|$)/.test(location.search)) {
+    const ind = document.createElement("div");
+    ind.className = "ptr"; ind.setAttribute("aria-hidden", "true");
+    ind.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
+    document.body.append(ind);
+    const NEED = 80;            // 이만큼(px) 끌면 놓을 때 새로고침
+    let y0 = null, d = 0, busy = false;
+    const reset = () => { ind.classList.remove("drag", "ready"); ind.style.transform = ""; ind.style.opacity = ""; };
+    addEventListener("touchstart", e => {
+      d = 0;
+      y0 = !busy && scrollY <= 0 && e.touches.length === 1 && !document.querySelector("dialog[open]") ? e.touches[0].clientY : null;
+    }, { passive: true });
+    addEventListener("touchmove", e => {
+      if (y0 == null) return;
+      d = e.touches[0].clientY - y0;
+      if (d <= 0 || scrollY > 0) { d = 0; reset(); return; }
+      const pull = Math.min(d * 0.55, 110);   // 손가락보다 덜 내려오게
+      ind.classList.add("drag"); ind.classList.toggle("ready", d >= NEED);
+      ind.style.opacity = Math.min(d / NEED, 1);
+      ind.style.transform = `translate(-50%, ${pull}px) rotate(${Math.round(d * 2.5)}deg)`;
+    }, { passive: true });
+    const end = () => {
+      if (y0 == null) return;
+      y0 = null; ind.classList.remove("drag");
+      if (d >= NEED) { busy = true; ind.classList.add("spin"); ind.style.transform = "translate(-50%, 64px)"; ind.style.opacity = 1; setTimeout(() => location.reload(), 150); }
+      else reset();
+    };
+    addEventListener("touchend", end); addEventListener("touchcancel", () => { y0 = null; reset(); });
+  }
 }
 
 /* 테마 */
