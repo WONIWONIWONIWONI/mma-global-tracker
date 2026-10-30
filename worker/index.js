@@ -40,6 +40,7 @@ async function collect(env, at) {
         if (row) prev = { observedAt: row.observed_at, candidates: JSON.parse(row.candidates) };
       }
       const o = await ad.collect({ env, now: Date.now(), prev });
+      if (!o) return null;   // 아직 공개된 값이 없음(예: 베리즈 첫 집계 전)
       return { source, observedAt: o.observedAt, sourceAt: o.sourceAt ?? null, totalVotes: o.totalVotes ?? null, candidates: o.candidates };
     } catch (e) {
       // 실패한 사이트는 이번 관측을 건너뛴다. 화면은 마지막 정상값을 "N분 전 값"으로 보여 준다.

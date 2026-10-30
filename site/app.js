@@ -410,7 +410,7 @@ function renderStatus() {
   if (!P) { el.textContent = loadError ? "데이터를 불러오지 못했습니다" : "불러오는 중…"; return; }
   const now = Date.now(), m = P.sites.melon, b = P.sites.berriz;
   const site = s => s.latest
-    ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
+    ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.latest.sourceAt ? ` <span class="hide-m">(사이트 집계 <b class="num">${hm(s.latest.sourceAt)}</b>)</span>` : ""}${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
     : '<b class="warn">관측 없음</b>';
   const ok = !loadError && !m.stale && !b.stale;
   const html = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
