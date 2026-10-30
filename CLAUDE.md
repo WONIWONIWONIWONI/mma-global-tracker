@@ -1,4 +1,4 @@
-# MMA 2026 글로벌 TOP10 트래커
+﻿# MMA 2026 글로벌 TOP10 트래커
 
 멜론과 베리즈에서 동시에 진행되는 MMA 2026 글로벌 TOP10 투표를 실시간으로 수집하고,
 음원 점수와 합쳐 잠정 순위를 보여주는 비공식 트래커를 만든다.
@@ -118,8 +118,7 @@ LESSERAFIM 42.82, BOYNEXTDOOR 42.37, i-dle 42.05, Stray Kids 41.80, IU 39.80, RE
 ## 아직 넣지 않은 것 (다음 작업)
 
 - 이미지 공유 확장: 시간대별 증가량·일일 득표량·마감 기록 표는 아직 공유 버튼이 없다.
-- 베리즈 GitHub 수집: 사용자가 INGEST_TOKEN 비밀값을 Cloudflare Worker와 GitHub 저장소 양쪽에 넣어야 시작된다.
-  넣은 뒤 workflow_dispatch로 한 번 돌려 첫 저장 확인 → MAINTENANCE를 tabs ["global"], sites []로 바꿔 베리즈 탭 열기.
+- 글로벌 TOP10 탭 다시 열기: 사용자가 30팀 예측 음원 점수를 주면 config.js chart 값을 채우고 MAINTENANCE.tabs를 []로.
 - 12시간 표차 예측은 넣지 않는다(점수 구조가 달라 검증이 안 됨).
 
 ## 기술 구성 (정한 방향)
@@ -179,7 +178,7 @@ GitHub Actions 커밋 방식은 실행 지연이 있어 쓰지 않는다. Cloudf
 
 ## 현재 상태 (2026-10-29, 1~4번 작업 완료)
 
-- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (10/30부터 실제 수집. 멜론 20초 정상, 베리즈는 GitHub 수집 준비됨·비밀값 등록 대기)
+- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (10/30부터 실제 수집. 멜론 20초, 베리즈 GitHub 10분(10:30 집계부터) 정상. 글로벌 탭만 점검 중)
 - Cloudflare 무료 플랜. D1 `mma-tracker`(APAC, id는 wrangler.jsonc). wrangler 로그인 완료.
 - 개인정보: 이 저장소는 공개다. 사용자의 이메일, 이메일에서 나온 아이디, 계정 ID를 파일·커밋에 적지 않는다.
   workers.dev 하위 도메인은 원래 이메일 아이디였어서 사용자가 대시보드에서 happyapple로 바꿨다(2026-10-29).

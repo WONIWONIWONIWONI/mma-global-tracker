@@ -226,7 +226,8 @@ function siteData(key) {
   const vals = ser.v[L], total = sum(vals);
   const order = CANDS.map(c => c.k).sort((a, b) => (vals[b] ?? -1) - (vals[a] ?? -1));
   const back = ms => { const i = at(ser, now - ms); return i < 0 ? null : ser.v[i]; };
-  const h1 = back(HOUR), m1 = L > 0 ? ser.v[L - 1] : null;
+  // 직전 값: 멜론은 1분 전, 베리즈는 10분 전 집계(베리즈 시계열은 집계 사이를 같은 값으로 이어 둠)
+  const h1 = back(HOUR), m1 = key === "berriz" ? back(10 * MIN) : L > 0 ? ser.v[L - 1] : null;
   const diff = (row, k) => row && row[k] != null && vals[k] != null ? vals[k] - row[k] : null;
   const share = k => total && vals[k] != null ? vals[k] / total * 100 : 0;
   return { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share };
@@ -243,7 +244,7 @@ function renderSite(key) {
   if (!ds.includes(S.dDate)) S.dDate = ds[ds.length - 1];
   const top = order[0], sec = order[1], gap = vals[top] - vals[sec];
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
-  const card = (k, r) => `<div class="card${r === 1 ? " first" : ""}"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · 직전 1분 ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
+  const card = (k, r) => `<div class="card${r === 1 ? " first" : ""}"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · ${key === "berriz" ? "직전 집계" : "직전 1분"} ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
 
   // 전체 현황: 넓은 화면은 표, 휴대폰은 한 줄 목록(순위 · 이름/점유율·1시간 증가·점수 · 득표수/앞 순위와 차)
   const gapPrev = r => r ? "−" + fmt(vals[order[r - 1]] - vals[order[r]]) : "1위";
