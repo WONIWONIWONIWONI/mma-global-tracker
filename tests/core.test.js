@@ -45,22 +45,26 @@ test("투표 점수만 합산(useChart=false): 30팀 모두 순위, 합산 = 멜
   } finally { RULES.useChart = was; }
 });
 
-test("방식 2(표 합산): 두 사이트 표를 더해 합산 1위가 투표 20점, 나머지는 비율", () => {
-  // 0번: 멜론 1000 + 베리즈 0 = 1000, 1번: 멜론 100 + 베리즈 600 = 700 → 방식 1은 1번이 앞서지만 방식 2는 0번이 앞섬
-  const m = vec(k => k === 0 ? 1000 : k === 1 ? 100 : 10), b = vec(k => k === 0 ? 0 : k === 1 ? 600 : 10);
+test("방식 2(득표율 기준): @kowartermelon 10/30 예측표와 같은 순위·점수", () => {
+  // 그 표의 멜론·베리즈 표. 베리즈 × (멜론 합 ÷ 베리즈 합) + 멜론 → 1위를 20점으로 환산
+  const T = { bts: [11295, 18134], aespa: [3163, 837], cortis: [4296, 8492], ive: [3618, 973], bigbang: [1095, 960], gdragon: [22012, 394],
+    nctwish: [14238, 1383], rescene: [38834, 348], seventeen: [2318, 554], riize: [13286, 1731], illit: [936, 343], txt: [1622, 255],
+    hearts2hearts: [3334, 3372], boynextdoor: [2930, 437], twice: [168, 47], lesserafim: [240, 31], idle: [203, 213], straykids: [366, 56],
+    iu: [2066, 1437], blackpink: [161, 50], enhypen: [758, 314], exo: [1521, 516], nmixx: [791, 6], newjeans: [841, 159],
+    nctdream: [5660, 4072], babymonster: [169, 73], tws: [5093, 293], jennie: [234, 16], rose: [157, 6], yena: [329, 50] };
+  const want = ["bts", "aespa", "cortis", "ive", "bigbang", "gdragon", "nctwish", "rescene", "seventeen", "riize", "illit", "txt"];
   const was = RULES.useChart;
-  RULES.useChart = false;
+  RULES.useChart = true;
   try {
-    const one = standings(m, b).rows, two = combinedStandings(m, b).rows;
-    assert.equal(one[0].id, CANDIDATES[1].id);
-    assert.equal(two[0].id, CANDIDATES[0].id);
-    assert.equal(two[0].vote, 20);
-    assert.ok(Math.abs(two[1].vote - 20 * 700 / 1000) < 1e-9);
-    // 2위가 1위를 넘으려면 합산 1위(1000표)보다 많아야 함 → 301표
-    assert.deepEqual(two[1].need, { type: "votes", n: 301 });
-    // 3위 이하는 2위 점수를 넘을 만큼만: 필요한 표를 더하면 실제로 앞서야 함
-    const r = two[2], n = r.need.n, ahead = two[1];
-    assert.ok(20 * (r.sum + n) / 1000 > ahead.total && 20 * (r.sum + n - 1) / 1000 <= ahead.total);
+    const m = vec((k, c) => T[c.id][0]), b = vec((k, c) => T[c.id][1]);
+    const st = combinedStandings(m, b), by = id => st.rows.find(r => r.id === id);
+    assert.deepEqual(st.rows.slice(0, want.length).map(r => r.id), want);
+    assert.ok(Math.abs(st.ratio - 141734 / 45552) < 1e-9);
+    for (const [id, v] of [["bts", 20], ["rescene", 11.79], ["cortis", 9.07], ["gdragon", 6.87]]) assert.ok(Math.abs(by(id).vote - v) < 0.015, id);
+    // 역전 필요 표: 그만큼 더하면 앞 후보를 넘고, 1표 적으면 못 넘는다(배수가 바뀌는 것까지 다시 계산)
+    const r = by("rescene"), n = r.needMelon.n, ahead = st.rows[r.rank - 2];
+    const after = d => { const x = m.slice(), k = CANDIDATES.findIndex(c => c.id === "rescene"); x[k] += d; const s2 = combinedStandings(x, b).rows; return s2.find(q => q.id === "rescene").total > s2.find(q => q.id === ahead.id).total; };
+    assert.ok(after(n) && !after(n - 1));
   } finally { RULES.useChart = was; }
 });
 
