@@ -46,16 +46,18 @@ test("투표 점수만 합산(useChart=false): 30팀 모두 순위, 합산 = 멜
 });
 
 test("음원 포함(useChart=true): 음원 점수 없는 팀은 순위 없이 맨 아래", () => {
-  const was = RULES.useChart;
+  const was = RULES.useChart, first = CANDIDATES[0], chart = first.chart;
   RULES.useChart = true;
+  first.chart = null;   // 시험 동안만 1위 팀 음원 점수를 비운다(지금은 30팀 모두 점수가 있음)
   try {
     const st = standings(vec(() => 100), vec(() => 100));
     assert.equal(RULES.provisionalMax, 80);
     const ranked = st.rows.filter(r => r.rank != null), unranked = st.rows.filter(r => r.rank == null);
-    assert.equal(ranked.length, CANDIDATES.filter(c => c.chart != null).length);
+    assert.equal(ranked.length, CANDIDATES.length - 1);
+    assert.equal(unranked.length, 1);
     assert.ok(unranked.every(r => r.total == null));
     assert.ok(st.rows.indexOf(unranked[0]) > st.rows.indexOf(ranked[ranked.length - 1]));
-  } finally { RULES.useChart = was; }
+  } finally { RULES.useChart = was; first.chart = chart; }
 });
 
 test("시각 기준(slotOf): 자정 몇 초 전 관측은 자정 값, 20초 수집은 그 분, 베리즈는 집계 시각", () => {

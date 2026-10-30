@@ -39,10 +39,9 @@ export const CANDIDATES = [
   c("tws", "TWS", 30.90, "3679688", "TWS"),
   c("jennie", "JENNIE", 29.62, "995173", "JENNIE"),
   c("nctdream", "NCT DREAM", 28.13, "1066419", "NCT DREAM"),
-  // 예측표(30팀)에 없는 실제 후보: 음원 점수 미확인(합산 순위 없이 따로 표시). 예측표에는 대신 NCT 127(25.25)과
-  // Red Velvet(25.00)이 있었는데 실제 후보가 아니다.
-  c("rose", "ROSÉ", null, "995171", "ROSÉ"),
-  c("yena", "YENA", null, "2399724", "YENA")
+  // 예측표(30팀)에 없던 실제 후보: 사용자가 10/30 따로 준 예측 음원 점수. (예측표의 NCT 127·Red Velvet은 실제 후보가 아님)
+  c("rose", "ROSÉ", 23.87, "995171", "ROSÉ"),
+  c("yena", "YENA", 22.44, "2399724", "YENA")
 ];
 
 export const SITES = { melon: "멜론", berriz: "베리즈" };
