@@ -53,11 +53,35 @@ function header(doc, c, m) {
   if (m.sample) { doc.rect(W - PAD - 96, 28, 96, 24, c.sunk, 5); doc.text(W - PAD - 48, 45, "예시 데이터", { size: 12, weight: 600, color: c.ink, align: "center" }); }
   return 92;
 }
+// 글자 폭에 맞춰 여러 줄로 나눈다(웹폰트가 늦게 와도 넘치지 않게 폭을 6% 넉넉히 잡는다)
+function wrapText(s, font, maxW) {
+  const g = document.createElement("canvas").getContext("2d");
+  g.font = font;
+  const fits = t => g.measureText(t).width * 1.06 <= maxW, lines = [];
+  let cur = "";
+  for (const word of s.split(" ")) {
+    const t = cur ? cur + " " + word : word;
+    if (!cur || fits(t)) { cur = t; continue; }
+    lines.push(cur); cur = word;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+// 바닥글: 설명은 전체 폭에서 줄바꿈하고, 주소는 마지막 줄 오른쪽(자리가 없으면 다음 줄)에 둔다
 function footer(doc, c, y, note) {
   doc.line(PAD, y, W - PAD, y, c.line);
-  doc.text(PAD, y + 22, note, { size: 12, color: c.muted, maxW: W - PAD * 2 - 220 });
-  doc.text(W - PAD, y + 22, location.host, { size: 12, color: c.muted, align: "right", family: "num" });
-  return y + 36;
+  const size = 12, lh = 17, full = W - PAD * 2, font = `400 ${size}px ${FONTS.body}`;
+  const host = location.host, g = document.createElement("canvas").getContext("2d");
+  g.font = `400 ${size}px ${FONTS.num}`;
+  const hostW = g.measureText(host).width * 1.06 + 16;
+  const lines = wrapText(note, font, full);
+  g.font = font;
+  const lastFits = g.measureText(lines[lines.length - 1]).width * 1.06 + hostW <= full;
+  let ty = y + 22;
+  lines.forEach((l, i) => { doc.text(PAD, ty, l, { size, color: c.muted, maxW: full }); if (i < lines.length - 1) ty += lh; });
+  if (!lastFits) ty += lh;
+  doc.text(W - PAD, ty, host, { size, color: c.muted, align: "right", family: "num" });
+  return ty + 14;
 }
 
 /* ───────── 표 그리기(순위표·현황표 공통) ───────── */
