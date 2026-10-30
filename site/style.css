@@ -149,6 +149,9 @@ table{border-collapse:collapse;width:100%}
 /* 글로벌 탭 맨 위 순위 기준(투표 점수만 합산하는 동안) */
 .basis{margin:0;padding:9px 12px;border:1px solid var(--line);border-left:4px solid var(--cut);border-radius:8px;background:var(--surface);font-size:13px;color:var(--muted);line-height:1.5}
 .basis b{color:var(--ink);margin-right:6px}
+.basis.m2{border-left-color:var(--accent,var(--cut))}
+.mtag{display:inline-block;vertical-align:middle;margin-left:6px;padding:1px 7px;border-radius:4px;background:var(--cut);color:var(--cut-ink);font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.rank .sub em{font-style:normal}.rank .sub .mc{color:var(--melon)}.rank .sub .bc{color:var(--berriz)}
 .adj{color:var(--down);cursor:help}   /* 사이트 집계 조정으로 표가 줄어든 증가량 */
 
 /* 사이트 순위 카드 */

@@ -99,8 +99,14 @@ export async function rankImage(m) {
     { label: "변동", x: 70, get: r => chg(r.change) },
     { label: "후보", x: 112, w: 170, get: r => ({ s: r.name, family: "body", weight: 500 }) },
     ...(withChart ? [{ label: m.chartLabel || "음원", x: 360, align: "right", get: r => f2(r.chart) }] : []),
-    { label: "멜론", x: 440 + dx, align: "right", get: r => ({ s: f2(r.ms), color: c.melon }) },
-    { label: "베리즈", x: 520 + dx, align: "right", get: r => ({ s: f2(r.bs), color: c.berriz }) },
+    // 방식 2(m.combined): 멜론·베리즈 점수 대신 두 사이트 합산 표수와 그 표로 환산한 투표 점수
+    ...(m.combined ? [
+      { label: "합산 표수", x: 460 + dx, align: "right", get: r => ({ s: r.sum == null ? "—" : fmt(r.sum), color: c.muted }) },
+      { label: `투표(${m.voteMax})`, x: 540 + dx, align: "right", get: r => f2(r.vote) }
+    ] : [
+      { label: "멜론", x: 440 + dx, align: "right", get: r => ({ s: f2(r.ms), color: c.melon }) },
+      { label: "베리즈", x: 520 + dx, align: "right", get: r => ({ s: f2(r.bs), color: c.berriz }) }
+    ]),
     { label: withChart ? "합산" : "투표 합산", x: 620 + dx / 2, align: "right", get: r => ({ s: f2(r.total), weight: 500 }) },
     { label: "앞 순위와", x: W - PAD - 8, align: "right", get: r => r.gap != null ? { s: gapLabel(r.gap), color: c.muted } : { s: r.rank === 1 ? "선두" : "—", color: c.muted, family: "body" } }
   ], m.rows, { cutoff: m.cutoff });
@@ -182,9 +188,11 @@ export function rankHTML(m) {
   const withChart = m.chartLabel !== null;
   const body = m.rows.map((r, i) => {
     const bg = r.pin ? ` bgcolor="${L.pin}" style="background:${L.pin};"` : "", cut = m.cutoff && i === m.cutoff ? `border-top:2px solid ${L.ink};` : "";
-    return `<tr${bg}>${td("<b>" + (r.rank ?? "–") + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${withChart ? td(f2(r.chart), "right", cut) : ""}${td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut)}${td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap != null ? gapLabel(r.gap) : r.rank === 1 ? "선두" : "—", "right", cut + `color:${L.muted};`)}</tr>`;
+    return `<tr${bg}>${td("<b>" + (r.rank ?? "–") + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${withChart ? td(f2(r.chart), "right", cut) : ""}${m.combined
+      ? td(r.sum == null ? "—" : fmt(r.sum), "right", cut + `color:${L.muted};`) + td(f2(r.vote), "right", cut)
+      : td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut) + td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap != null ? gapLabel(r.gap) : r.rank === 1 ? "선두" : "—", "right", cut + `color:${L.muted};`)}</tr>`;
   }).join("");
-  return htmlBlock(m, th("순위", "right") + th("변동") + th("후보") + (withChart ? th(esc(m.chartLabel || "음원"), "right") : "") + th("멜론", "right") + th("베리즈", "right") + th(withChart ? "합산" : "투표 합산", "right") + th("앞 순위와", "right"), body);
+  return htmlBlock(m, th("순위", "right") + th("변동") + th("후보") + (withChart ? th(esc(m.chartLabel || "음원"), "right") : "") + (m.combined ? th("합산 표수", "right") + th(`투표(${m.voteMax})`, "right") : th("멜론", "right") + th("베리즈", "right")) + th(withChart ? "합산" : "투표 합산", "right") + th("앞 순위와", "right"), body);
 }
 export function siteHTML(m) {
   const sc = L[m.site] || L.ink;

@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CANDIDATES, RULES, COLLECT } from "../site/core/config.js";
-import { siteScores, votesNeeded, standings } from "../site/core/scoring.js";
+import { siteScores, votesNeeded, standings, combinedStandings } from "../site/core/scoring.js";
 import { slotOf, votesAsOf } from "../site/core/history.js";
 import { buildPayload } from "../site/core/api.js";
 import { fgap, gapLabel } from "../site/format.js";
@@ -42,6 +42,25 @@ test("투표 점수만 합산(useChart=false): 30팀 모두 순위, 합산 = 멜
       assert.ok(Math.abs(r.total - (r.ms + r.bs)) < 1e-9);
       if (i) assert.ok(st.rows[i - 1].total >= r.total);
     });
+  } finally { RULES.useChart = was; }
+});
+
+test("방식 2(표 합산): 두 사이트 표를 더해 합산 1위가 투표 20점, 나머지는 비율", () => {
+  // 0번: 멜론 1000 + 베리즈 0 = 1000, 1번: 멜론 100 + 베리즈 600 = 700 → 방식 1은 1번이 앞서지만 방식 2는 0번이 앞섬
+  const m = vec(k => k === 0 ? 1000 : k === 1 ? 100 : 10), b = vec(k => k === 0 ? 0 : k === 1 ? 600 : 10);
+  const was = RULES.useChart;
+  RULES.useChart = false;
+  try {
+    const one = standings(m, b).rows, two = combinedStandings(m, b).rows;
+    assert.equal(one[0].id, CANDIDATES[1].id);
+    assert.equal(two[0].id, CANDIDATES[0].id);
+    assert.equal(two[0].vote, 20);
+    assert.ok(Math.abs(two[1].vote - 20 * 700 / 1000) < 1e-9);
+    // 2위가 1위를 넘으려면 합산 1위(1000표)보다 많아야 함 → 301표
+    assert.deepEqual(two[1].need, { type: "votes", n: 301 });
+    // 3위 이하는 2위 점수를 넘을 만큼만: 필요한 표를 더하면 실제로 앞서야 함
+    const r = two[2], n = r.need.n, ahead = two[1];
+    assert.ok(20 * (r.sum + n) / 1000 > ahead.total && 20 * (r.sum + n - 1) / 1000 <= ahead.total);
   } finally { RULES.useChart = was; }
 });
 
