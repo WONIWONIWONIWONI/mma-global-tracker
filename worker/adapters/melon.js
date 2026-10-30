@@ -21,13 +21,19 @@ export async function collect({ now }) {
   const j = await r.json();
   const cat = j?.response?.categories?.find(x => x.categoryId === CATEGORY);
   if (!cat || !Array.isArray(cat.nominees)) throw new Error("글로벌 TOP10 부문이 응답에 없음");
+  return { observedAt: now, sourceAt: null, ...parse(cat.nominees.map(n => ({ id: n?.content?.id, voteCount: n?.voteCount }))) };
+}
 
+// 후보 목록 [{id: 멜론 아티스트 ID, voteCount}] → { totalVotes, candidates }.
+// Cloudflare 수집과 GitHub 보조 수집(scripts/berriz_collect.py가 같은 목록으로 줄여 보냄)이 같이 쓴다.
+export function parse(nominees) {
+  if (!Array.isArray(nominees)) throw new Error("후보 목록이 없음");
   const byId = new Map();
   let totalVotes = 0;
-  for (const n of cat.nominees) {
+  for (const n of nominees) {
     const v = n?.voteCount;
     if (!Number.isFinite(v)) continue;
-    byId.set(String(n.content?.id), v);
+    byId.set(String(n.id), v);
     totalVotes += v;
   }
   const candidates = {};
@@ -36,5 +42,5 @@ export async function collect({ now }) {
     if (v != null) candidates[c.id] = v;
   }
   if (Object.keys(candidates).length < CANDIDATES.length / 2) throw new Error(`후보 매칭이 너무 적음(${Object.keys(candidates).length}팀)`);
-  return { observedAt: now, sourceAt: null, totalVotes, candidates };
+  return { totalVotes, candidates };
 }

@@ -3,7 +3,8 @@ GitHub Actions(.github/workflows/backup.yml)가 하루 한 번 실행한다.
 
 - 파일: backup/obs-YYYY-MM-DD.ndjson.gz  (그 KST 날짜 00:00 이상 ~ 다음 날 00:00 미만에 관측된 줄)
 - 한 줄 = 관측 1회: {"source","observedAt","sourceAt","totalVotes","candidates":{후보id: 득표수}}
-- 이미 있는 날짜 파일은 건드리지 않는다(지난 날짜는 바뀌지 않음). 빠진 날이 있으면 다음 실행에서 채운다.
+- 끝난 지 3일 이내의 날짜는 매번 다시 만든다(한도 초과 등으로 늦게 채워진 관측 반영. 내용이 같으면 파일도 같아 커밋 안 됨).
+  그보다 오래된 날짜 파일은 건드리지 않는다. 빠진 날이 있으면 다음 실행에서 채운다.
 - 필요한 환경 변수: CF_API_TOKEN(D1 읽기 권한), CF_ACCOUNT_ID. 데이터베이스 ID는 wrangler.jsonc에서 읽는다.
 - 실행: python scripts/backup.py [--dry-run]
 """
@@ -21,6 +22,11 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "backup"
 KST = dt.timezone(dt.timedelta(hours=9))
 SETTLE = dt.timedelta(minutes=10)  # 날짜가 바뀐 뒤 마지막 수집이 끝날 여유
+REFRESH = dt.timedelta(days=3)     # 끝난 지 이 기간 안의 날짜는 매번 다시 만든다(늦게 채워진 관측 반영)
+
+
+def recent(day: dt.date, now: dt.datetime) -> bool:
+    return dt.datetime.combine(day + dt.timedelta(days=1), dt.time(), KST) + REFRESH > now
 
 
 def database_id() -> str:
@@ -70,7 +76,7 @@ def main() -> None:
         if end + SETTLE > now:
             break  # 아직 끝나지 않은 날
         path = OUT / f"obs-{day}.ndjson.gz"
-        if not path.exists():
+        if not path.exists() or recent(day, now):
             rows = query("SELECT source, observed_at, source_at, total_votes, candidates FROM obs "
                          "WHERE observed_at >= ? AND observed_at < ? ORDER BY observed_at, source",
                          (int(start.timestamp() * 1000), int(end.timestamp() * 1000)))
@@ -90,23 +96,27 @@ def main() -> None:
 
 def make_history(first: dt.date, now: dt.datetime, dry: bool) -> None:
     """끝난 날짜의 화면용 5분 간격 조각(D1 blob 'd:날짜')을 site/history/날짜.json 정적 파일로 만든다.
-    배포되면 화면이 이 파일을 받으므로 Worker 요청·CPU를 쓰지 않는다. 이미 있는 파일은 건드리지 않는다."""
+    배포되면 화면이 이 파일을 받으므로 Worker 요청·CPU를 쓰지 않는다. 끝난 지 3일 이내 날짜만 다시 만든다.
+    늦게 채워진 관측은 시각순이 아니게 붙으므로 시각순으로 정렬해 쓴다."""
     out = ROOT / "site" / "history"
     out.mkdir(exist_ok=True)
     made, day = 0, first
     while dt.datetime.combine(day + dt.timedelta(days=1), dt.time(), KST) + SETTLE <= now:
         path = out / f"{day}.json"
-        if not path.exists():
+        if not path.exists() or recent(day, now):
             rows = query("SELECT body FROM blob WHERE k = ?", (f"d:{day}",))
             if rows and rows[0]["body"]:
-                n = rows[0]["body"].count('{"source"')
-                print(f"history {day}: {n}줄{' (미리보기)' if dry else ''}")
-                if not dry:
-                    path.write_text('{"day":"%s","lines":[%s]}' % (day, rows[0]["body"].rstrip(",")), encoding="utf-8")
+                lines = json.loads("[" + rows[0]["body"].rstrip(",") + "]")
+                lines.sort(key=lambda o: (o["observedAt"], o["source"]))
+                text = '{"day":"%s","lines":%s}' % (day, json.dumps(lines, ensure_ascii=False, separators=(",", ":")))
+                old = path.read_text(encoding="utf-8") if path.exists() else None
+                print(f"history {day}: {len(lines)}줄{' (미리보기)' if dry else ''}{' (변화 없음)' if old == text else ''}")
+                if not dry and old != text:
+                    path.write_text(text, encoding="utf-8")
                     made += 1
             time.sleep(0.3)
         day += dt.timedelta(days=1)
-    print(f"새 화면용 날짜 파일 {made}개")
+    print(f"새로 쓴 화면용 날짜 파일 {made}개")
 
 
 if __name__ == "__main__":

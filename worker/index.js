@@ -40,14 +40,54 @@ const PUT = "INSERT INTO blob (k, body, updated_at) VALUES (?, ?, ?) ON CONFLICT
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // 관측 하나를 저장하는 문장들: 원본(obs) + 최신값(l:) + 지정한 조각(h:, d:)에 이어 붙이기
-function storeStmts(env, o, appendKeys, at) {
+function storeStmts(env, o, appendKeys, at, latest = true) {
   const line = JSON.stringify(o) + ",";
   return [
     env.DB.prepare("INSERT OR IGNORE INTO obs (source, observed_at, source_at, total_votes, candidates) VALUES (?, ?, ?, ?, ?)")
       .bind(o.source, o.observedAt, o.sourceAt, o.totalVotes, JSON.stringify(o.candidates)),
-    env.DB.prepare(PUT).bind("l:" + o.source, line, at),
+    ...(latest ? [env.DB.prepare(PUT).bind("l:" + o.source, line, at)] : []),
     ...appendKeys.map(k => env.DB.prepare(APPEND).bind(k, line, at))
   ];
+}
+
+const auth = (env, req) => !!env.INGEST_TOKEN && (req.headers.get("authorization") || "") === "Bearer " + env.INGEST_TOKEN;
+const minuteSlot = ts => Math.floor((ts + 5000) / MIN) * MIN;   // site/core/history.js slotOf 와 같은 기준
+const MELON_BATCH = 15;   // 한 번에 받는 관측 수(무료 플랜 D1 쿼리 수 한도 50 안에서)
+
+// 멜론 보조 수집: GitHub Actions가 1분마다 읽은 값을 5분마다 묶어 보낸다. Cloudflare 수집이 이미 있는 분은 버리고,
+// 빠진 분(한도 초과·Cron 누락 등)만 채운다. 보내기가 실패하면 GitHub이 보관했다가 다시 보낸다.
+// 본문 {items:[{observedAt, nominees:[{id, voteCount}]}]}
+async function ingestMelon(env, req, now) {
+  if (!auth(env, req)) return error(401, "인증 실패");
+  const text = await req.text();
+  if (text.length > 200000) return error(413, "너무 큼");
+  let items;
+  try { items = JSON.parse(text).items; } catch { return error(400, "형식 오류"); }
+  if (!Array.isArray(items) || items.length > MELON_BATCH) return error(400, `items는 ${MELON_BATCH}개 이하`);
+  const lo = Date.parse(VOTE.start) - 10 * MIN, hi = Math.min(now + MIN, Date.parse(VOTE.end) + 30 * MIN);
+  items = items.filter(x => Number.isFinite(x?.observedAt) && x.observedAt >= lo && x.observedAt <= hi).sort((a, b) => a.observedAt - b.observedAt);
+  if (!items.length) return ok({ stored: 0, skipped: 0 });
+
+  const from = minuteSlot(items[0].observedAt) - 5000, to = minuteSlot(items[items.length - 1].observedAt) + MIN - 5000;
+  const have = await env.DB.prepare("SELECT observed_at FROM obs WHERE source = 'melon' AND observed_at >= ? AND observed_at < ?").bind(from, to).all();
+  const slots = new Set(have.results.map(r => minuteSlot(r.observed_at)));
+  const stmts = [];
+  let stored = 0, skipped = 0;
+  for (const x of items) {
+    const slot = minuteSlot(x.observedAt);
+    if (slots.has(slot)) { skipped++; continue; }
+    let p;
+    try { p = melon.parse(x.nominees); } catch (e) { skipped++; continue; }
+    slots.add(slot);
+    const o = { source: "melon", observedAt: x.observedAt, sourceAt: null, totalVotes: p.totalVotes, candidates: p.candidates };
+    const keys = [];
+    if (now - x.observedAt < HOUR_KEEP * HOUR) keys.push(hourKey(x.observedAt));
+    const dk = dayBlobKey(slot); if (dk) keys.push(dk);
+    stmts.push(...storeStmts(env, o, keys, now, now - x.observedAt < 2 * MIN));
+    stored++;
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  return ok({ stored, skipped });
 }
 
 // 멜론: 이번 분의 0·20·40초에 조회. 0초 값만 h:·d: 조각에 넣고(그래프·기록은 1분 간격 유지), 20·40초 값은 최신값으로만.
@@ -73,8 +113,7 @@ async function collectMelon(env, at) {
 
 // 베리즈: GitHub Actions가 보낸 원본 응답을 받아 저장. 같은 집계(같은 aggregatedAt)는 한 번만 저장한다.
 async function ingestBerriz(env, req, now) {
-  const auth = req.headers.get("authorization") || "";
-  if (!env.INGEST_TOKEN || auth !== "Bearer " + env.INGEST_TOKEN) return error(401, "인증 실패");
+  if (!auth(env, req)) return error(401, "인증 실패");
   if (now < Date.parse(VOTE.start) - 10 * MIN || now > Date.parse(VOTE.end) + 30 * MIN) return error(409, "투표 기간이 아닙니다");
   const text = await req.text();
   if (text.length > 100000) return error(413, "너무 큼");
@@ -83,9 +122,14 @@ async function ingestBerriz(env, req, now) {
   if (!p) return ok({ stored: false, reason: "아직 집계 전" });
   const last = await env.DB.prepare("SELECT source_at FROM obs WHERE source = 'berriz' ORDER BY observed_at DESC LIMIT 1").first();
   if (last && p.sourceAt != null && last.source_at != null && p.sourceAt <= last.source_at) return ok({ stored: false, reason: "같은 집계", sourceAt: p.sourceAt });
-  const o = { source: "berriz", observedAt: now, sourceAt: p.sourceAt, totalVotes: p.totalVotes, candidates: p.candidates };
-  // 집계 시각 기준 날짜(00:00 집계는 전날 마감값)
-  await env.DB.batch(storeStmts(env, o, [hourKey(now), dayKey((p.sourceAt ?? now) - 1)], now));
+  // 관측 시각: GitHub이 실제로 읽은 시각(밀렸다 다시 보낼 때도 정확하게). 이상한 값이면 받은 시각.
+  const sent = Number(req.headers.get("x-observed-at"));
+  const observedAt = Number.isFinite(sent) && sent <= now && (p.sourceAt == null || sent >= p.sourceAt) ? sent : now;
+  const o = { source: "berriz", observedAt, sourceAt: p.sourceAt, totalVotes: p.totalVotes, candidates: p.candidates };
+  // 집계 시각 기준 날짜(00:00 집계는 전날 마감값). 오래 밀린 값은 최근 8시간 조각에 넣지 않는다.
+  const keys = [dayKey((p.sourceAt ?? observedAt) - 1)];
+  if (now - observedAt < HOUR_KEEP * HOUR) keys.push(hourKey(observedAt));
+  await env.DB.batch(storeStmts(env, o, keys, now, now - observedAt < 15 * MIN));
   return ok({ stored: true, sourceAt: p.sourceAt, teams: Object.keys(p.candidates).length });
 }
 
@@ -196,6 +240,10 @@ export default {
     if (req.method === "POST" && url.pathname === "/api/ingest/berriz") {
       try { return await ingestBerriz(env, req, now); }
       catch (e) { console.error("베리즈 받기 오류", e && e.message); return error(503, "저장 실패"); }
+    }
+    if (req.method === "POST" && url.pathname === "/api/ingest/melon") {
+      try { return await ingestMelon(env, req, now); }
+      catch (e) { console.error("멜론 보조 받기 오류", e && e.message); return error(503, "저장 실패"); }
     }
     if (req.method !== "GET") return error(405, "GET만 지원합니다");
     try {
