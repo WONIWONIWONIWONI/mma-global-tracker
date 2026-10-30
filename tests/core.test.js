@@ -114,6 +114,10 @@ test("합산: 멜론 20초 + 베리즈 10분 간격이어도 보류하지 않고
   assert.ok(p.live && !p.live.held);
   assert.deepEqual(p.sites.melon.missing, []);
   assert.deepEqual(p.sites.berriz.missing, ["BTS"]);
+  // 점수 추이는 방식 1(trend)과 방식 2(trend2)를 같은 시각들로 만든다
+  assert.ok(p.trend.t.length > 0);
+  assert.deepEqual(p.trend2.t, p.trend.t);
+  assert.equal(p.trend2.totals.length, CANDIDATES.length);
 });
 
 test("점수 차 표시: 근소한 차이는 소수 셋째 자리, 같으면 동점", () => {

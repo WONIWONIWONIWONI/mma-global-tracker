@@ -61,7 +61,8 @@ function weighted(mv, bv) {
 const chartOf = k => RULES.useChart ? CANDIDATES[k].chart : null;
 const totalOf = (k, w) => { const c = chartOf(k), v = w.vote(k); return !RULES.useChart ? v : c == null ? null : c + v; };
 
-export function combinedStandings(melonVotes, berrizVotes) {
+// need: false 면 역전 필요 표를 계산하지 않는다(점수 추이처럼 많은 시점을 계산할 때 빠르게)
+export function combinedStandings(melonVotes, berrizVotes, { need = true } = {}) {
   const w = weighted(melonVotes, berrizVotes);
   const rows = CANDIDATES.map((c, k) => ({
     id: c.id, name: c.name, k0: k, chart: chartOf(k), mv: melonVotes[k], bv: berrizVotes[k], sum: w.sums[k],
@@ -71,6 +72,7 @@ export function combinedStandings(melonVotes, berrizVotes) {
     const ahead = rows[i - 1];
     r.rank = r.total != null ? i + 1 : null;
     r.gapAhead = r.rank != null && ahead ? ahead.total - r.total : null;
+    if (!need) return;
     r.needMelon = r.gapAhead != null ? weightedNeed(melonVotes, berrizVotes, r.k0, ahead.k0, "m") : null;
     r.needBerriz = r.gapAhead != null ? weightedNeed(melonVotes, berrizVotes, r.k0, ahead.k0, "b") : null;
   });

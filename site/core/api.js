@@ -1,7 +1,7 @@
 // API 응답 만들기. 점수 계산은 여기서 한 번만 하고 화면은 결과를 그리기만 한다.
 // 입력: 사이트별 관측 배열(시각순). Worker는 D1에서 읽은 관측을, 가짜 모드는 생성한 관측을 넣는다.
 import { CANDIDATES, SITES, RULES, COLLECT, PIN_DEFAULT, VOTE } from "./config.js";
-import { standings, siteScores } from "./scoring.js";
+import { standings, siteScores, combinedStandings } from "./scoring.js";
 import { voteVector, votesAsOf, buildSeries } from "./history.js";
 import { MIN, DAY, kstMidnight } from "./time.js";
 
@@ -9,10 +9,11 @@ const IDS = CANDIDATES.map(c => c.id);
 const round3 = x => Math.round(x * 1000) / 1000;
 const rankMap = st => Object.fromEntries(st.rows.map(r => [r.id, r.rank]));
 
-function standingsAt(M, B, t) {
+function votesAt(M, B, t) {
   const m = votesAsOf(M, t, IDS, COLLECT.gapMs.melon), b = votesAsOf(B, t, IDS, COLLECT.gapMs.berriz);
-  return m && b ? standings(m, b) : null;
+  return m && b ? [m, b] : null;
 }
+function standingsAt(M, B, t) { const v = votesAt(M, B, t); return v ? standings(...v) : null; }
 
 export function buildPayload(obsBySite, now, { sample = false } = {}) {
   const M = obsBySite.melon || [], B = obsBySite.berriz || [];
@@ -60,24 +61,26 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
     }
   }
 
-  // 점수 추이(10분 간격)
-  const trend = { t: [], totals: CANDIDATES.map(() => []), g12: [], gcut: [] };
-  const addTrend = (t, st) => {
-    trend.t.push(t);
-    for (const r of st.rows) trend.totals[IDS.indexOf(r.id)].push(r.total == null ? null : round3(r.total));
+  // 점수 추이(10분 간격). trend 는 방식 1, trend2 는 방식 2(득표율 기준, 참고용)로 같은 시각들을 계산한다.
+  const newTrend = () => ({ t: [], totals: CANDIDATES.map(() => []), g12: [], gcut: [] });
+  const trend = newTrend(), trend2 = newTrend();
+  const push = (tr, t, st) => {
+    tr.t.push(t);
+    for (const r of st.rows) tr.totals[IDS.indexOf(r.id)].push(r.total == null ? null : round3(r.total));
     const gap = (a, b) => a && b && a.total != null && b.total != null ? round3(a.total - b.total) : null;
-    trend.g12.push(gap(st.rows[0], st.rows[1]));
-    trend.gcut.push(gap(st.rows[RULES.cutoff - 1], st.rows[RULES.cutoff]));
+    tr.g12.push(gap(st.rows[0], st.rows[1]));
+    tr.gcut.push(gap(st.rows[RULES.cutoff - 1], st.rows[RULES.cutoff]));
   };
+  const addTrend = (t, m, b) => { push(trend, t, standings(m, b)); push(trend2, t, combinedStandings(m, b, { need: false })); };
   if (live) {   // 합산 보류 중에도 두 사이트가 모두 있던 지난 구간은 보여 준다
     const STEP = 10 * MIN, end = Math.min(live.melonAt, live.berrizAt);
-    for (let t = Math.ceil(start / STEP) * STEP; t <= end; t += STEP) { const st = standingsAt(M, B, t); if (st) addTrend(t, st); }
-    if (!live.held) addTrend(Math.max(live.melonAt, live.berrizAt), live);
+    for (let t = Math.ceil(start / STEP) * STEP; t <= end; t += STEP) { const v = votesAt(M, B, t); if (v) addTrend(t, ...v); }
+    if (!live.held) addTrend(Math.max(live.melonAt, live.berrizAt), mL.votes, bL.votes);
   }
 
   return {
     generatedAt: now, sample, start,
     config: { candidates: CANDIDATES.map(({ id, name, chart }) => ({ id, name, chart })), rules: RULES, collect: COLLECT, pinDefault: PIN_DEFAULT, vote: VOTE },
-    sites, live, snapshots, trend
+    sites, live, snapshots, trend, trend2
   };
 }

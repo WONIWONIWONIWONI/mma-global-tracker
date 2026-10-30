@@ -209,11 +209,11 @@ function renderGlobal() {
     <p class="note">${RULES.useChart
       ? `${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다.`
       : `<b>투표 점수만 합산한 ${MAXT}점 만점 순위입니다.</b> 실제 결과에 들어가는 음원 점수 ${RULES.chartMax}점과 심사 점수 ${RULES.judgeScore}점은 빠져 있어 최종 순위와 다를 수 있습니다.`} ${M2
-      ? `<b>방식 2(득표율 기준, 참고용)</b>: 베리즈 표 × ${rx} + 멜론 표를 환산 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다(두 사이트 득표율을 더한 것과 같은 순서). 지금은 베리즈 1표가 멜론 약 ${rx}표와 같습니다. 역전에 필요한 표는 표가 늘면 배수도 바뀌는 것까지 다시 계산했습니다. 점수 추이 그래프는 방식 1 기준입니다.`
+      ? `<b>방식 2(득표율 기준, 참고용)</b>: 베리즈 표 × ${rx} + 멜론 표를 환산 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다(두 사이트 득표율을 더한 것과 같은 순서). 지금은 베리즈 1표가 멜론 약 ${rx}표와 같습니다. 역전에 필요한 표는 표가 늘면 배수도 바뀌는 것까지 다시 계산했습니다. 아래 점수 추이도 방식 2로 계산합니다(마감 기록의 순위 변동은 방식 1 순위 대비).`
       : `<b>방식 1(사이트 1위 기준)</b>: 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점씩 나눠 1:1로 더합니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.`}</p>
   </div>
   <div class="panel">
-    <div class="phead"><div><h2>점수 추이</h2><p>10분 간격 관측으로 다시 계산한 합산 점수</p></div>
+    <div class="phead"><div><h2>점수 추이${M2 ? ' <span class="mtag">방식 2</span>' : ""}</h2><p>10분 간격 관측으로 다시 계산한 합산 점수 · ${M2 ? "방식 2(득표율 기준)" : "방식 1(사이트 1위 기준)"}</p></div>
       <div class="ctrl">
         <span class="seg">${[["total", "합산 점수"], ["g12", "1·2위 차"], ["cut", "10·11위 차"]].map(([k, l]) => `<button type="button" data-g="trend" data-v="${k}" aria-pressed="${G.trend === k}">${l}</button>`).join("")}</span>
         <span class="seg">${[["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-g="range" data-v="${k}" aria-pressed="${G.range === k}">${l}</button>`).join("")}</span>
@@ -223,7 +223,7 @@ function renderGlobal() {
     <div class="chart" id="g-chart"></div>
   </div>`;
 
-  const T = P.trend, lastT = T.t[T.t.length - 1], from = G.range === "24h" ? lastT - DAY : -Infinity;
+  const T = M2 && P.trend2 ? P.trend2 : P.trend, lastT = T.t[T.t.length - 1], from = G.range === "24h" ? lastT - DAY : -Infinity;
   const keep = T.t.map((t, i) => t >= from ? i : -1).filter(i => i >= 0);
   let series;
   const valid = p => p[1] != null;
@@ -423,8 +423,9 @@ async function makeShare(kind) {
   let legend = [...panel.querySelectorAll('.chip[aria-pressed="true"]')].map(b => ({ name: b.textContent, color: getComputedStyle(b).getPropertyValue("--c").trim() }));
   let title, ts, note = "비공식 트래커";
   if (key === "g") {
-    ts = P.trend.t[P.trend.t.length - 1]; note = rankNote();
-    title = `MMA 2026 글로벌 TOP10 · ${G.trend === "total" ? "합산 점수 추이" : G.trend === "g12" ? "1·2위 점수차 추이" : "10·11위 점수차 추이"}`;
+    const M2 = G.method === "2";
+    ts = P.trend.t[P.trend.t.length - 1]; note = rankNote() + (M2 ? " · 방식 2(참고용): 두 사이트 득표율 기준(베리즈 표를 멜론 전체 표에 맞춰 환산)" : "");
+    title = `MMA 2026 글로벌 TOP10 · ${G.trend === "total" ? "합산 점수 추이" : G.trend === "g12" ? "1·2위 점수차 추이" : "10·11위 점수차 추이"}${M2 ? " · 방식 2" : ""}`;
     if (G.trend !== "total") legend = [];
   } else {
     const D = siteData(key), S = ST[key]; ts = D.now;
