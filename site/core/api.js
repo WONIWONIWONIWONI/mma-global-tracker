@@ -10,7 +10,7 @@ const round3 = x => Math.round(x * 1000) / 1000;
 const rankMap = st => Object.fromEntries(st.rows.map(r => [r.id, r.rank]));
 
 function standingsAt(M, B, t) {
-  const m = votesAsOf(M, t, IDS), b = votesAsOf(B, t, IDS);
+  const m = votesAsOf(M, t, IDS, COLLECT.gapMs.melon), b = votesAsOf(B, t, IDS, COLLECT.gapMs.berriz);
   return m && b ? standings(m, b) : null;
 }
 
@@ -24,10 +24,10 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
       name: SITES[key],
       latest: o ? { observedAt: o.observedAt, sourceAt: o.sourceAt ?? null, totalVotes: o.totalVotes ?? null, votes } : null,
       ageMs: o ? now - o.observedAt : null,
-      stale: o ? now - o.observedAt > COLLECT.staleMs : true,
+      stale: o ? now - o.observedAt > COLLECT.staleMs[key] : true,
       max: sc ? sc.max : null,
       scores: sc ? sc.scores : null,
-      series: buildSeries(obs, IDS, now)
+      series: buildSeries(obs, IDS, now, COLLECT.gapMs[key])
     };
   }
   const starts = [M[0], B[0]].filter(Boolean).map(o => o.observedAt);

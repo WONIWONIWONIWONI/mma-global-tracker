@@ -53,15 +53,18 @@ export const RULES = {
   chartEstimated: true // 음원 점수가 공식 값이 아니라 예측값이면 true(화면에 "예측" 표시)
 };
 
+// 수집 주기(2026-10-30): 멜론은 Cloudflare가 20초마다(원본이 실시간), 베리즈는 GitHub Actions가 10분마다
+// (원본이 10분마다 집계: 00·10·20…분). 그래서 기준을 사이트별로 둔다.
 export const COLLECT = {
-  staleMs: 3 * MIN,    // 마지막 관측이 이보다 오래되면 "N분 전 값"으로 표시
-  maxSkewMs: 5 * MIN,  // 두 사이트 관측 시각 차이가 이보다 크면 합산 보류
-  gapMs: 10 * MIN      // 이보다 오래 관측이 없으면 그 구간은 빈 값(0으로 채우지 않음)
+  everySec: { melon: 20, berriz: 600 },            // 화면 안내용 수집 간격
+  staleMs: { melon: 3 * MIN, berriz: 20 * MIN },   // 마지막 관측이 이보다 오래되면 "N분 전 값"으로 표시
+  gapMs: { melon: 10 * MIN, berriz: 25 * MIN },    // 이보다 오래 관측이 없으면 그 구간은 빈 값(0으로 채우지 않음)
+  maxSkewMs: 25 * MIN  // 두 사이트 관측 시각 차이가 이보다 크면 합산 보류(베리즈는 원래 10분 간격이라 넉넉히)
 };
 
 export const PIN_DEFAULT = "rescene";
 
 // 점검 중(2026-10-30 사용자 요청): 30팀 예측 음원 점수와 베리즈 수집 방법이 정해질 때까지 닫아 둔다.
-// tabs: 화면에서 잠글 탭(눌러도 열리지 않고 "점검 중" 표시), sites: 수집을 멈출 사이트(Worker·상태 확인이 건너뜀).
+// tabs: 화면에서 잠글 탭(눌러도 열리지 않고 "점검 중" 표시), sites: 상태줄에 "점검 중"으로 보이고 상태 확인(health.py)이 건너뛸 사이트.
 // 다시 열 때는 이 목록에서 빼면 된다.
 export const MAINTENANCE = { tabs: ["global", "berriz"], sites: ["berriz"] };

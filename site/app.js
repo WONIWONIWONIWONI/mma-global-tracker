@@ -418,9 +418,9 @@ function renderStatus() {
     ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.latest.sourceAt ? ` <span class="hide-m">(사이트 집계 <b class="num">${hm(s.latest.sourceAt)}</b>)</span>` : ""}${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
     : '<b class="warn">관측 없음</b>';
   const ok = !loadError && (closed("melon") || !m.stale) && (closed("berriz") || !b.stale);
-  const html = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
+  const html = `<span class="live${ok ? "" : " off"}"><i></i><b>멜론 20초 · 베리즈 10분 간격 수집</b></span>
     <span>멜론 ${site(m, "melon")}</span><span>베리즈 ${site(b, "berriz")}</span>
-    ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${Math.round(P.live.skewMs / 1000)}초</b></span>` : ""}
+    ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${P.live.skewMs < 120e3 ? Math.round(P.live.skewMs / 1000) + "초" : Math.round(P.live.skewMs / MIN) + "분"}</b></span>` : ""}
     ${paused
       ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
       : '<span>다음 갱신 <b class="num cd" id="cd"></b></span>'}

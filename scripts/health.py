@@ -1,7 +1,7 @@
 """트래커 상태 확인. GitHub Actions(.github/workflows/health.yml)가 30분마다 실행한다.
 
 투표 기간에만 확인하고, 문제가 있으면 GITHUB_OUTPUT 에 problem=설명 을 남긴다(워크플로가 이슈를 열어 알림).
-확인 항목: API 응답(하루 요청 한도 초과 포함), 사이트별 마지막 관측이 15분 넘게 지났는지, 아직 가짜 데이터인지.
+확인 항목: API 응답(하루 요청 한도 초과 포함), 사이트별 마지막 관측이 너무 오래됐는지(멜론 15분, 베리즈 35분), 아직 가짜 데이터인지.
 실행: python scripts/health.py [--force]   (--force: 투표 기간이 아니어도 확인)
 """
 import datetime as dt
@@ -15,7 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = "https://mma-global-tracker.happyapple.workers.dev"
-STALE_MIN = 15
+# 마지막 관측이 이보다 오래되면 문제(분). 멜론은 20초마다, 베리즈는 GitHub이 10분마다 보낸다.
+STALE_MIN = {"melon": 15, "berriz": 35}
 
 
 def vote_window():
@@ -51,7 +52,7 @@ def check() -> list[str]:
         times = [o["observedAt"] for o in data.get("lines", []) if o.get("source") == source]
         if not times:
             problems.append(f"{name}: 최근 2시간 관측 없음")
-        elif (now_ms - max(times)) / 60000 > STALE_MIN:
+        elif (now_ms - max(times)) / 60000 > STALE_MIN[source]:
             problems.append(f"{name}: 마지막 관측이 {int((now_ms - max(times)) / 60000)}분 전")
     if data.get("sample"):
         problems.append("아직 가짜 데이터로 수집 중(실제 어댑터로 바꾸지 않음)")
