@@ -1,7 +1,7 @@
 // 화면. API 응답(점수 계산이 끝난 결과)을 받아 그리기만 한다.
 import { USE_MOCK, REFRESH_MS, IDLE_MS } from "./settings.js";
 import * as remote from "./remote.js";
-import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
+import { MIN, HOUR, DAY, KST, fmt, signed, f2, fgap, gapLabel, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
 import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
 import { MAINTENANCE } from "./core/config.js";
@@ -121,11 +121,13 @@ function renderGlobal() {
       ? (pin.rank === 1 ? "선두" : `${pin.rank - 1}위와 ${f2(R[pin.rank - 2].total - pin.total)}점 차`) + ` · 11위와 ${f2(pin.total - R[CUT].total)}점 차`
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
-    cards = `<div class="cards">
-      <div class="card first"><span class="k">1위 (잠정)</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${f2(R[0].total - R[1].total)}점 앞섬</span></div>
-      <div class="card cut"><span class="k">TOP10 컷</span>
+    // 음원 점수를 빼고 투표 점수만 합산하는 동안은 카드 위에 기준을 크게 적는다(캡처로 퍼질 때 오해 방지)
+    const basis = RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`;
+    cards = `${basis}<div class="cards">
+      <div class="card first"><span class="k">1위 (${RULES.useChart ? "잠정" : "투표 점수"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬</span></div>
+      <div class="card cut"><span class="k">TOP10 컷${RULES.useChart ? "" : " (투표 점수)"}</span>
         <span class="cutpair"><span><i>10위</i><b>${esc(R[CUT - 1].name)}</b><em>${f2(R[CUT - 1].total)}</em></span><span><i>11위</i><b>${esc(R[CUT].name)}</b><em>${f2(R[CUT].total)}</em></span></span>
-        <span class="v">${f2(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span></div>
+        <span class="v">${fgap(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span></div>
       <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
         <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
     </div>`;
@@ -133,6 +135,8 @@ function renderGlobal() {
     // 넓은 화면은 표, 좁은 화면(휴대폰)은 한 줄 요약 목록(누르면 득표수·역전 필요 표가 펼쳐짐)을 보여 준다
     const est = RULES.chartEstimated ? "(예측)" : "", UC = RULES.useChart;   // UC false: 투표 점수만 합산(음원 열 없음)
     const votes = x => x == null ? "관측 없음" : fmt(x) + "표";
+    // 한 사이트라도 값이 없으면 그 사이트 점수가 0으로 계산되므로 이름 옆에 표시한다
+    const noVal = r => r.mv == null || r.bv == null ? ` <em class="warn" title="${r.mv == null ? "멜론" : "베리즈"} 값이 없어 0점으로 계산됨">값 없음</em>` : "";
     const UNRANKED = "음원 점수 미확인 · 합산 순위 없음";
     let rows = "", mrows = "";
     R.forEach((r, i) => {
@@ -142,9 +146,9 @@ function renderGlobal() {
         rows += `<tr class="sep"><td colspan="${UC ? 10 : 9}">${UNRANKED}</td></tr>`;
         mrows += `<li class="sep">${UNRANKED}</li>`;
       }
-      const gapTxt = r.gapAhead != null ? "−" + f2(r.gapAhead) : r.rank === 1 ? "선두" : "";
+      const gapTxt = r.gapAhead != null ? gapLabel(r.gapAhead) : r.rank === 1 ? "선두" : "";
       rows += `<tr class="${r.k === G.pin ? "pin" : ""}">
-        <td class="r">${r.rank ?? muted("–")}</td><td class="ch">${ch}</td><td class="nm">${esc(r.name)}</td>
+        <td class="r">${r.rank ?? muted("–")}</td><td class="ch">${ch}</td><td class="nm">${esc(r.name)}${noVal(r)}</td>
         ${UC ? `<td class="num">${f2(r.chart)}</td>` : ""}
         <td class="num">${f2(r.ms)}<span class="sub">${votes(r.mv)}</span></td>
         <td class="num">${f2(r.bs)}<span class="sub">${votes(r.bv)}</span></td>
@@ -155,7 +159,7 @@ function renderGlobal() {
       const oid = "rm-" + r.id;
       mrows += `<li class="${r.k === G.pin ? "pin" : ""}"><details id="${oid}"${openState[oid] ? " open" : ""}><summary>
         <span class="r">${r.rank ?? "–"}</span><span class="ch">${ch}</span>
-        <span class="nm">${esc(r.name)}<small>${UC ? f2(r.chart) + " + " : ""}<em class="mc">${f2(r.ms)}</em> + <em class="bc">${f2(r.bs)}</em></small></span>
+        <span class="nm">${esc(r.name)}${noVal(r)}<small>${UC ? f2(r.chart) + " + " : ""}<em class="mc">${f2(r.ms)}</em> + <em class="bc">${f2(r.bs)}</em></small></span>
         <span class="tt"><b class="num">${f2(r.total)}</b><small class="num">${gapTxt}</small></span></summary>
         <div class="more"><div>멜론 ${votes(r.mv)} · 베리즈 ${votes(r.bv)}</div>
           ${r.gapAhead != null ? `<div>앞 순위를 넘으려면 · 멜론만 ${needHTML(r.needMelon)} · 베리즈만 ${needHTML(r.needBerriz)}</div>` : ""}</div></details></li>`;
@@ -246,13 +250,16 @@ function renderSite(key) {
   if (!ds.includes(S.dDate)) S.dDate = ds[ds.length - 1];
   const top = order[0], sec = order[1], gap = vals[top] - vals[sec];
   const gapH = h1 ? gap - (h1[top] - h1[sec]) : null;
-  const card = (k, r) => `<div class="card${r === 1 ? " first" : ""}"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · ${key === "berriz" ? "직전 집계" : "직전 1분"} ${signed(diff(m1, k))} · 1시간 ${signed(diff(h1, k))}</span></div>`;
+  // 증가량. 음수(표가 줄어듦)는 사이트가 비정상 투표를 집계에서 뺀 경우라 오류로 보이지 않게 * 표시와 설명을 붙인다
+  let adjusted = false;
+  const inc = x => { if (x != null && x < 0) { adjusted = true; return `<span class="adj" title="사이트가 집계에서 표를 제외해 줄었습니다">${signed(x)}*</span>`; } return signed(x); };
+  const card = (k, r) => `<div class="card${r === 1 ? " first" : ""}"><span class="k">${r}위</span><span class="n">${nameOf(k)}</span><span class="v num" style="font-family:var(--f-disp)">${fmt(vals[k])}</span><span class="s">점유율 ${share(k).toFixed(2)}% · ${key === "berriz" ? "직전 집계" : "직전 1분"} ${inc(diff(m1, k))} · 1시간 ${inc(diff(h1, k))}</span></div>`;
 
   // 전체 현황: 넓은 화면은 표, 휴대폰은 한 줄 목록(순위 · 이름/점유율·1시간 증가·점수 · 득표수/앞 순위와 차)
   const gapPrev = r => r ? "−" + fmt(vals[order[r - 1]] - vals[order[r]]) : "1위";
-  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num">${r ? gapPrev(r) : "—"}</td><td class="num">${signed(diff(h1, k))}</td><td class="num">${f2(s.scores[k])}</td></tr>`).join("");
+  const listRows = order.map((k, r) => `<tr${k === G.pin ? ' style="background:var(--pin)"' : ""}><td class="num">${r + 1}</td><td>${nameOf(k)}</td><td class="num">${fmt(vals[k])}</td><td class="num">${share(k).toFixed(2)}%</td><td class="num">${r ? gapPrev(r) : "—"}</td><td class="num">${inc(diff(h1, k))}</td><td class="num">${f2(s.scores[k])}</td></tr>`).join("");
   const listM = order.map((k, r) => `<li${k === G.pin ? ' class="pin"' : ""}><span class="r">${r + 1}</span>
-    <span class="nm">${nameOf(k)}<small>${f2(s.scores[k])}점 · 1시간 ${signed(diff(h1, k))}</small></span>
+    <span class="nm">${nameOf(k)}<small>${f2(s.scores[k])}점 · 1시간 ${inc(diff(h1, k))}</small></span>
     <span class="tt"><b class="num">${fmt(vals[k])}</b><small class="num">${gapPrev(r)}</small></span></li>`).join("");
 
   // 구간 [a, b) 증가량. 관측이 없는 구간은 null(0으로 채우지 않음)
@@ -298,6 +305,7 @@ function renderSite(key) {
     <div class="tscroll list-wide"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div>
     <ol class="site-m">${listM}</ol>
     <p class="hint-m">작은 글씨는 이 사이트 점수(10점 만점)와 1시간 증가, 오른쪽 아래는 앞 순위와의 표 차이입니다.</p>
+    ${adjusted ? `<p class="note">* 표가 줄어든 경우: ${s.name} 쪽에서 비정상 투표를 집계에서 제외한 것으로 보입니다(오류 아님).</p>` : ""}
   </div>
   <div class="panel">
     <div class="phead"><div><h2>득표 추이</h2><p>${S.mode === "votes" ? "누적 득표수" : "전체 득표 대비 점유율"} · 1분 관측</p></div>
@@ -432,6 +440,7 @@ function renderStatus() {
     ${voteStatus(now)}
     ${refreshMs > REFRESH_MS ? `<span class="warn">접속이 많아 ${refreshMs % 60e3 ? refreshMs / 1000 + "초" : refreshMs / 60e3 + "분"} 간격으로 갱신 중</span>` : ""}
     ${loadError ? '<span class="warn">최근 갱신 실패 · 이전 값 표시 중</span>' : ""}
+    ${[m, b].filter(s => s.missing && s.missing.length).map(s => `<span class="warn" title="${esc(s.missing.join(", "))}">${s.name} ${s.missing.length}팀 값 없음(사이트 표기 변경 확인 중)</span>`).join("")}
     ${P.sample ? '<span class="sample">예시 데이터 · 투표 주소 공개 전 화면</span>' : ""}`;
   if (html !== statusHTML) { el.innerHTML = html; statusHTML = html; }
   const cd = el.querySelector("#cd");

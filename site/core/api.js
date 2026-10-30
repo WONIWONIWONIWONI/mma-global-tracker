@@ -23,6 +23,8 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
     sites[key] = {
       name: SITES[key],
       latest: o ? { observedAt: o.observedAt, sourceAt: o.sourceAt ?? null, totalVotes: o.totalVotes ?? null, votes } : null,
+      // 최신 관측에 값이 없는 후보(사이트가 이름·ID를 바꾸면 생김). 0점처럼 보이므로 화면에 경고한다.
+      missing: votes ? CANDIDATES.filter((c, k) => votes[k] == null).map(c => c.name) : [],
       ageMs: o ? now - o.observedAt : null,
       stale: o ? now - o.observedAt > COLLECT.staleMs[key] : true,
       max: sc ? sc.max : null,

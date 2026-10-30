@@ -1,6 +1,6 @@
 // 이미지 공유: 데이터로 직접 그린 PNG(순위표·현황표), 화면 차트를 옮긴 PNG, 게시판용 HTML(표만, 이미지 없음).
 // 공유창에서 이미지 복사 · PNG 다운로드 · (휴대폰) 공유하기 · 게시판용 HTML 복사를 고른다.
-import { fmt, f2, signed, esc } from "./format.js";
+import { fmt, f2, gapLabel, signed, esc } from "./format.js";
 
 const FONTS = {
   body: '"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
@@ -102,7 +102,7 @@ export async function rankImage(m) {
     { label: "멜론", x: 440 + dx, align: "right", get: r => ({ s: f2(r.ms), color: c.melon }) },
     { label: "베리즈", x: 520 + dx, align: "right", get: r => ({ s: f2(r.bs), color: c.berriz }) },
     { label: withChart ? "합산" : "투표 합산", x: 620 + dx / 2, align: "right", get: r => ({ s: f2(r.total), weight: 500 }) },
-    { label: "앞 순위와", x: W - PAD - 8, align: "right", get: r => r.gap == null ? { s: "선두", color: c.muted, family: "body" } : { s: "−" + f2(r.gap), color: c.muted } }
+    { label: "앞 순위와", x: W - PAD - 8, align: "right", get: r => r.gap == null ? { s: "선두", color: c.muted, family: "body" } : { s: gapLabel(r.gap), color: c.muted } }
   ], m.rows, { cutoff: m.cutoff });
   y = footer(doc, c, y + 18, m.note);
   return paint(doc, y, c.surface);
@@ -182,7 +182,7 @@ export function rankHTML(m) {
   const withChart = m.chartLabel !== null;
   const body = m.rows.map((r, i) => {
     const bg = r.pin ? ` bgcolor="${L.pin}" style="background:${L.pin};"` : "", cut = m.cutoff && i === m.cutoff ? `border-top:2px solid ${L.ink};` : "";
-    return `<tr${bg}>${td("<b>" + (r.rank ?? "–") + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${withChart ? td(f2(r.chart), "right", cut) : ""}${td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut)}${td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap == null ? "선두" : "−" + f2(r.gap), "right", cut + `color:${L.muted};`)}</tr>`;
+    return `<tr${bg}>${td("<b>" + (r.rank ?? "–") + "</b>", "right", cut)}${td(chg(r.change), "left", cut)}${td("<b>" + esc(r.name) + "</b>", "left", cut)}${withChart ? td(f2(r.chart), "right", cut) : ""}${td(`<font color="${L.melon}">${f2(r.ms)}</font>`, "right", cut)}${td(`<font color="${L.berriz}">${f2(r.bs)}</font>`, "right", cut)}${td("<b>" + f2(r.total) + "</b>", "right", cut)}${td(r.gap == null ? "선두" : gapLabel(r.gap), "right", cut + `color:${L.muted};`)}</tr>`;
   }).join("");
   return htmlBlock(m, th("순위", "right") + th("변동") + th("후보") + (withChart ? th(esc(m.chartLabel || "음원"), "right") : "") + th("멜론", "right") + th("베리즈", "right") + th(withChart ? "합산" : "투표 합산", "right") + th("앞 순위와", "right"), body);
 }

@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --test-scheduled --port 8787",
-    "deploy": "git pull --ff-only && wrangler deploy",
+    "test": "node --test tests/",
+    "deploy": "git pull --ff-only && node --test tests/ && wrangler deploy",
     "db:init:local": "wrangler d1 execute mma-tracker --local --file worker/schema.sql",
     "db:init:remote": "wrangler d1 execute mma-tracker --remote --file worker/schema.sql"
   },

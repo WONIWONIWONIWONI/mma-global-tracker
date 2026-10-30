@@ -1,0 +1,22 @@
+# 코드가 올라올 때마다 자동 시험(tests/)을 돌린다. 외부 라이브러리 설치 없이 Node 기본 시험 도구만 쓴다.
+# 공개 저장소라 무료. 실패하면 GitHub이 저장소 주인에게 메일을 보낸다.
+name: Tests
+
+on:
+  push:
+    paths: ["site/**", "worker/**", "tests/**", "package.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node --test tests/

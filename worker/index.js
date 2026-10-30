@@ -134,11 +134,63 @@ async function ingestBerriz(env, req, now) {
 }
 
 /* ───────── 요청 한도 지키기: 남은 한도에 맞춰 화면 갱신 간격을 정한다 ─────────
- * Workers 무료 플랜은 계정 전체 하루 10만 요청(UTC 00시 = KST 09시 초기화). 5분마다 Cloudflare 사용량 통계로
- * 오늘 쓴 요청 수와 최근 요청 속도를 보고, 남은 한도를 초기화 시각까지 나눠 쓰도록 갱신 간격(60~600초)을 정해 둔다.
- * 화면은 API 응답의 refreshSec 를 따른다. 필요한 비밀값(대시보드에서 등록): CF_API_TOKEN(Account Analytics 읽기), CF_ACCOUNT_ID.
+ * Workers 무료 플랜은 계정 전체 하루 10만 요청(UTC 00시 = KST 09시 초기화).
+ * - 오늘 쓴 양(used): 5분마다 Cloudflare 사용량 통계(GraphQL)로 확인 → m:usage. 통계는 몇 분 늦다.
+ * - 지금 속도(rate): API 요청 8번에 1번꼴로 그 분의 칸(c:<분>)에 8을 더해 둔다(쓰기 한도를 아끼는 표본 집계).
+ *   통계를 기다리지 않아 사람이 갑자기 몰려도 1~2분 안에 반응한다(2026-10-30, 전에는 15~20분 걸림).
+ * - 매분 Cron이 최근 3분 속도와 오늘 쓴 양으로, 남은 한도를 초기화까지 고르게 쓰는 가장 짧은 간격(20~600초)을 정해
+ *   m:refresh 에 둔다. 화면은 API 응답의 refreshSec 를 따른다.
+ * 비밀값 CF_API_TOKEN·CF_ACCOUNT_ID 가 없으면 오늘 쓴 양을 속도로만 어림한다.
  */
-const DAILY_LIMIT = 100000, RESERVE = 0.1, REFRESH_MIN = 20, REFRESH_MAX = 600, USAGE_KEY = "m:usage";
+const DAILY_LIMIT = 100000, RESERVE = 0.1, REFRESH_MIN = 20, REFRESH_MAX = 600;
+const USAGE_KEY = "m:usage", REFRESH_KEY = "m:refresh";
+const COUNT_EVERY = 8;     // API 요청 표본 비율(1/8)
+const FIXED_PER_MIN = 3;   // 화면과 무관한 고정 요청(Cron 1 + GitHub 보조 수집 등) 분당 어림값
+
+// API 요청 수 표본 집계(c:<분> 칸에 COUNT_EVERY씩). 응답을 늦추지 않게 waitUntil로 뒤에서 쓴다.
+function countRequest(env, ctx, now) {
+  if (Math.random() * COUNT_EVERY >= 1) return;
+  ctx.waitUntil(env.DB.prepare("INSERT INTO blob (k, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET body = CAST(blob.body AS INTEGER) + ?, updated_at = excluded.updated_at")
+    .bind("c:" + Math.floor(now / MIN), String(COUNT_EVERY), now, COUNT_EVERY).run().catch(e => console.error("요청 집계 실패", e && e.message)));
+}
+
+const roundSec = s => s < 60 ? Math.ceil(s / 10) * 10 : Math.ceil(s / 30) * 30;   // 1분 미만 10초, 그 이상 30초 단위
+
+// 매분: 최근 속도와 오늘 쓴 양으로 화면 갱신 간격을 정한다.
+export async function adjustRefresh(env, at) {
+  try {
+    const m = Math.floor(at / MIN), keys = [1, 2, 3].map(i => "c:" + (m - i));
+    const [cnt, usage, cur] = await env.DB.batch([
+      env.DB.prepare("SELECT k, body FROM blob WHERE k IN (?, ?, ?)").bind(...keys),
+      env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY),
+      env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(REFRESH_KEY)
+    ]);
+    const byKey = Object.fromEntries(cnt.results.map(r => [r.k, Number(r.body) || 0]));
+    const counts = keys.map(k => byKey[k] || 0);
+    // 최근 3분 평균과 직전 1분 중 큰 값(갑자기 늘 때 바로 반응)
+    const rate = Math.max(counts.reduce((s, n) => s + n, 0) / 3, counts[0]);
+    const prev = cur.results[0] ? (JSON.parse(cur.results[0].body).refreshSec || REFRESH_MIN) : REFRESH_MIN;
+    const dayStart = Math.floor(at / 864e5) * 864e5, dayEnd = dayStart + 864e5;
+    const u = usage.results[0] ? JSON.parse(usage.results[0].body) : null;
+    // 오늘 쓴 양: 통계값 + 통계 확인 뒤 지금까지 속도로 어림. 통계가 없거나 어제 것이면 속도로만 어림.
+    const used = u && u.checkedAt >= dayStart
+      ? u.used + (at - u.checkedAt) / MIN * (rate + FIXED_PER_MIN)
+      : (at - dayStart) / MIN * (rate + FIXED_PER_MIN);
+    const left = DAILY_LIMIT * (1 - RESERVE) - used, minutesLeft = (dayEnd - at) / MIN;
+    const allowed = left / minutesLeft - FIXED_PER_MIN;   // 화면 요청에 쓸 수 있는 분당 요청 수
+    // 지금 간격(prev초)에서 분당 rate 요청이 왔다면 x초 간격일 때는 rate × prev / x. 이게 allowed 이하가 되는 가장 짧은 x.
+    let refreshSec = left <= 0 || allowed <= 0 ? REFRESH_MAX : roundSec(rate * prev / allowed);
+    // 늘릴 때는 바로, 줄일 때는 1분에 절반까지만(한꺼번에 줄였다가 다시 몰리는 출렁임 방지)
+    refreshSec = Math.max(refreshSec || REFRESH_MIN, roundSec(prev / 2));
+    refreshSec = Math.min(REFRESH_MAX, Math.max(REFRESH_MIN, refreshSec));
+    const stmts = [env.DB.prepare("DELETE FROM blob WHERE k >= 'c:' AND k < 'c;' AND updated_at < ?").bind(at - 10 * MIN)];
+    if (refreshSec !== prev || !cur.results[0] || m % 10 === 0)
+      stmts.push(env.DB.prepare(PUT).bind(REFRESH_KEY, JSON.stringify({ refreshSec, rate: Math.round(rate), used: Math.round(used), at }), at));
+    await env.DB.batch(stmts);
+  } catch (e) {
+    console.error("갱신 간격 계산 실패", e && e.message);   // 실패하면 마지막 값을 그대로 쓴다
+  }
+}
 
 // 오늘(UTC) 요청 수를 15분 묶음으로 한 번에 가져온다(통계 API 조회 횟수를 아끼려고 한 번만 묻는다).
 async function usageToday(env, dayStart, at) {
@@ -155,40 +207,24 @@ async function usageToday(env, dayStart, at) {
     const t = Date.parse(x.dimensions.datetimeFifteenMinutes);
     buckets.set(t, (buckets.get(t) || 0) + x.sum.requests);
   }
-  const used = [...buckets.values()].reduce((s, n) => s + n, 0);
-  // 최근 속도: 통계가 몇 분 늦게 반영되므로 3분 전까지 끝난 가장 최근 15분 묶음으로 잰다
-  const done = [...buckets.keys()].filter(t => t + 15 * MIN <= at - 3 * MIN).sort((a, b) => b - a)[0];
-  return { used, recentPerMin: done == null ? 0 : buckets.get(done) / 15 };
+  return [...buckets.values()].reduce((s, n) => s + n, 0);
 }
 
+// 5분마다: 오늘 쓴 요청 수를 통계로 확인해 m:usage 에 둔다(갱신 간격은 매분 adjustRefresh가 정함).
 export async function checkUsage(env, at) {
   try {
-    const dayStart = Math.floor(at / 864e5) * 864e5, dayEnd = dayStart + 864e5;
-    const [{ used, recentPerMin }, prevRow] = await Promise.all([
-      usageToday(env, dayStart, at),
-      env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY).first()
-    ]);
-    const prev = prevRow ? JSON.parse(prevRow.body).refreshSec : REFRESH_MIN;
-    const left = DAILY_LIMIT * (1 - RESERVE) - used, minutesLeft = (dayEnd - at) / MIN;
-    // 지금 간격(prev초)에서 분당 recentPerMin 요청이 왔다면, x초 간격일 때는 recentPerMin × prev / x.
-    // 이게 남은 한도를 초기화까지 고르게 쓸 때의 분당 요청 수(allowed) 이하가 되는 가장 짧은 x.
-    const allowed = left / minutesLeft;
-    let refreshSec = left <= 0 ? REFRESH_MAX : recentPerMin * prev / allowed;
-    // 1분 미만은 10초 단위, 그 이상은 30초 단위로 올림
-    refreshSec = refreshSec < 60 ? Math.ceil(refreshSec / 10) * 10 : Math.ceil(refreshSec / 30) * 30;
-    refreshSec = Math.min(REFRESH_MAX, Math.max(REFRESH_MIN, refreshSec || REFRESH_MIN));
-    const body = JSON.stringify({ refreshSec, used, recentPerMin: Math.round(recentPerMin), checkedAt: at });
-    await env.DB.prepare("INSERT INTO blob (k, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at")
-      .bind(USAGE_KEY, body, at).run();
+    const dayStart = Math.floor(at / 864e5) * 864e5;
+    const used = await usageToday(env, dayStart, at);
+    await env.DB.prepare(PUT).bind(USAGE_KEY, JSON.stringify({ used, checkedAt: at }), at).run();
   } catch (e) {
     console.error("사용량 확인 실패", e && e.message);   // 실패하면 마지막 값을 그대로 쓴다
   }
 }
 
-// 저장된 갱신 간격. 1시간 넘게 갱신이 안 됐으면(통계 조회 실패 등) 120초로 무난하게.
+// 저장된 갱신 간격. 10분 넘게 갱신이 안 됐으면(Cron 문제 등) 120초로 무난하게.
 function refreshFrom(row, now) {
   if (!row) return REFRESH_MIN;
-  try { const u = JSON.parse(row.body); return now - u.checkedAt > HOUR ? 120 : u.refreshSec; } catch { return REFRESH_MIN; }
+  try { const u = JSON.parse(row.body); return now - u.at > 10 * MIN ? 120 : u.refreshSec; } catch { return REFRESH_MIN; }
 }
 
 /* ───────── API ───────── */
@@ -207,7 +243,7 @@ async function respond(env, now, keys, withDays, maxAge = 30) {
   const stmts = [
     // ORDER BY k: d: → h: → l: 순서(화면은 관측 시각으로 다시 정렬하지만 응답을 일정하게)
     env.DB.prepare(`SELECT body FROM blob WHERE k IN (${keys.map(() => "?").join(",")}) ORDER BY k`).bind(...keys),
-    env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY)
+    env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(REFRESH_KEY)
   ];
   if (withDays) stmts.push(env.DB.prepare("SELECT k FROM blob WHERE k >= 'd:' AND k < ? ORDER BY k").bind(dayKey(now)));
   const [blobs, meta, days] = await env.DB.batch(stmts);
@@ -233,10 +269,12 @@ export default {
     const inVote = at >= Date.parse(VOTE.start) - 10 * MIN && at <= Date.parse(VOTE.end) + 30 * MIN;
     if (SAMPLE || inVote) ctx.waitUntil(collectMelon(env, at));
     if (env.CF_API_TOKEN && env.CF_ACCOUNT_ID && at % (5 * MIN) === 2 * MIN) ctx.waitUntil(checkUsage(env, at));
+    ctx.waitUntil(adjustRefresh(env, at));
   },
 
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url), now = Date.now();
+    if (req.method === "GET") countRequest(env, ctx, now);
     if (req.method === "POST" && url.pathname === "/api/ingest/berriz") {
       try { return await ingestBerriz(env, req, now); }
       catch (e) { console.error("베리즈 받기 오류", e && e.message); return error(503, "저장 실패"); }

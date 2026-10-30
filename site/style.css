@@ -146,6 +146,10 @@ table{border-collapse:collapse;width:100%}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .note{font-size:12px;color:var(--muted);margin:10px 0 0}
+/* 글로벌 탭 맨 위 순위 기준(투표 점수만 합산하는 동안) */
+.basis{margin:0;padding:9px 12px;border:1px solid var(--line);border-left:4px solid var(--cut);border-radius:8px;background:var(--surface);font-size:13px;color:var(--muted);line-height:1.5}
+.basis b{color:var(--ink);margin-right:6px}
+.adj{color:var(--down);cursor:help}   /* 사이트 집계 조정으로 표가 줄어든 증가량 */
 
 /* 사이트 순위 카드 */
 .duel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr);gap:12px}

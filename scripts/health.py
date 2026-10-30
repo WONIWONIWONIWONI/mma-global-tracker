@@ -1,7 +1,8 @@
 """트래커 상태 확인. GitHub Actions(.github/workflows/health.yml)가 30분마다 실행한다.
 
 투표 기간에만 확인하고, 문제가 있으면 GITHUB_OUTPUT 에 problem=설명 을 남긴다(워크플로가 이슈를 열어 알림).
-확인 항목: API 응답(하루 요청 한도 초과 포함), 사이트별 마지막 관측이 너무 오래됐는지(멜론 15분, 베리즈 35분), 아직 가짜 데이터인지.
+확인 항목: API 응답(하루 요청 한도 초과 포함), 사이트별 마지막 관측이 너무 오래됐는지(멜론 15분, 베리즈 35분),
+최신 관측에 빠진 후보가 있는지(사이트 표기 변경), 아직 가짜 데이터인지.
 실행: python scripts/health.py [--force]   (--force: 투표 기간이 아니어도 확인)
 """
 import datetime as dt
@@ -33,6 +34,12 @@ def paused_sites() -> list[str]:
     return re.findall(r'"([^"]+)"', m.group(1)) if m else []
 
 
+def candidate_ids() -> list[str]:
+    """config.js CANDIDATES 의 후보 id 목록(c("id", ...) 형식)."""
+    text = (ROOT / "site" / "core" / "config.js").read_text(encoding="utf-8")
+    return re.findall(r'\bc\("([a-z0-9]+)"', text)
+
+
 def check() -> list[str]:
     try:
         req = urllib.request.Request(SITE + "/api/latest", headers={"User-Agent": "mma-tracker-health"})
@@ -46,10 +53,18 @@ def check() -> list[str]:
 
     problems = []
     now_ms = dt.datetime.now(dt.timezone.utc).timestamp() * 1000
+    ids = candidate_ids()
     for source, name in (("melon", "멜론"), ("berriz", "베리즈")):
         if source in paused_sites():
             continue
-        times = [o["observedAt"] for o in data.get("lines", []) if o.get("source") == source]
+        mine = [o for o in data.get("lines", []) if o.get("source") == source]
+        if mine:
+            # 최신 관측에 빠진 후보: 사이트가 이름·ID를 바꾸면 그 팀만 조용히 0점이 된다
+            latest = max(mine, key=lambda o: o["observedAt"])
+            gone = [i for i in ids if not isinstance(latest.get("candidates", {}).get(i), (int, float))]
+            if gone:
+                problems.append(f"{name}: {len(gone)}팀 값 없음({', '.join(gone)}) - 사이트 표기 변경 확인 필요")
+        times = [o["observedAt"] for o in mine]
         if not times:
             problems.append(f"{name}: 최근 2시간 관측 없음")
         elif (now_ms - max(times)) / 60000 > STALE_MIN[source]:
