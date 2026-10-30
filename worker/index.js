@@ -18,9 +18,10 @@
 import * as melon from "./adapters/melon.js";
 import * as berriz from "./adapters/berriz.js";
 import { MIN, HOUR, KST_OFFSET } from "../site/core/time.js";
-import { VOTE } from "../site/core/config.js";
+import { VOTE, MAINTENANCE } from "../site/core/config.js";
 
-const ADAPTERS = { melon, berriz };
+// 점검 중인 사이트는 조회하지 않는다(config.js MAINTENANCE.sites)
+const ADAPTERS = Object.fromEntries(Object.entries({ melon, berriz }).filter(([k]) => !MAINTENANCE.sites.includes(k)));
 const SAMPLE = Object.values(ADAPTERS).some(a => a.SAMPLE);
 const HOUR_KEEP = 8;
 

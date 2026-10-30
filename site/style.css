@@ -75,6 +75,10 @@ button,select{font:inherit;color:inherit}
 .tab{border:0;background:none;padding:9px 14px 10px;font-weight:500;font-size:15px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--tabc,var(--ink))}
 .tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--tabc,var(--ink));vertical-align:1px}
+/* 점검 중인 탭: 흐리게, 눌러도 열리지 않음(app.js MAINTENANCE) */
+.tab.closed{cursor:not-allowed;opacity:.55}
+.tab.closed .dot{background:var(--muted)}
+.tab .mt{font-style:normal;font-size:11px;font-weight:500;margin-left:6px;padding:1px 6px;border:1px solid var(--line);border-radius:999px;color:var(--muted);vertical-align:1px}
 .status{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding-block:9px;font-size:12.5px;color:var(--muted)}
 .status b{color:var(--ink);font-weight:500}
 .live{display:inline-flex;align-items:center;gap:6px}

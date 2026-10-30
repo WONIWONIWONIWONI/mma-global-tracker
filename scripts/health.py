@@ -25,6 +25,13 @@ def vote_window():
     return dt.datetime.fromisoformat(s), dt.datetime.fromisoformat(e)
 
 
+def paused_sites() -> list[str]:
+    """config.js MAINTENANCE.sites: 점검 중이라 수집을 멈춘 사이트는 확인하지 않는다."""
+    text = (ROOT / "site" / "core" / "config.js").read_text(encoding="utf-8")
+    m = re.search(r"MAINTENANCE\s*=\s*\{[^}]*sites:\s*\[([^\]]*)\]", text)
+    return re.findall(r'"([^"]+)"', m.group(1)) if m else []
+
+
 def check() -> list[str]:
     try:
         req = urllib.request.Request(SITE + "/api/latest", headers={"User-Agent": "mma-tracker-health"})
@@ -39,6 +46,8 @@ def check() -> list[str]:
     problems = []
     now_ms = dt.datetime.now(dt.timezone.utc).timestamp() * 1000
     for source, name in (("melon", "멜론"), ("berriz", "베리즈")):
+        if source in paused_sites():
+            continue
         times = [o["observedAt"] for o in data.get("lines", []) if o.get("source") == source]
         if not times:
             problems.append(f"{name}: 최근 2시간 관측 없음")

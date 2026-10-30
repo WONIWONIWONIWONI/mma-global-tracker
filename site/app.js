@@ -4,11 +4,15 @@ import * as remote from "./remote.js";
 import { MIN, HOUR, DAY, KST, fmt, signed, f2, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
 import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
+import { MAINTENANCE } from "./core/config.js";
 
 const $ = s => document.querySelector(s);
 // 차트 선 색은 테마(일반/다크)마다 style.css 의 --c1~--c8 에서 정한다
 const PALETTE = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)", "var(--c8)"];
 const VIEWS = ["global", "melon", "berriz"];
+// 점검 중인 탭과 사이트(config.js MAINTENANCE). 내 컴퓨터의 가짜 데이터 미리보기에서는 모두 연다.
+const CLOSED_TABS = USE_MOCK ? [] : MAINTENANCE.tabs, CLOSED_SITES = USE_MOCK ? [] : MAINTENANCE.sites;
+const OPEN_VIEWS = VIEWS.filter(v => !CLOSED_TABS.includes(v));
 
 /* ───────── 데이터 ───────── */
 let P = null, CANDS = [], K = {}, RULES = null;
@@ -409,12 +413,13 @@ function renderStatus() {
   const el = $("#status");
   if (!P) { el.textContent = loadError ? "데이터를 불러오지 못했습니다" : "불러오는 중…"; return; }
   const now = Date.now(), m = P.sites.melon, b = P.sites.berriz;
-  const site = s => s.latest
+  const closed = k => CLOSED_SITES.includes(k);
+  const site = (s, k) => closed(k) ? "<b>점검 중</b>" : s.latest
     ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.latest.sourceAt ? ` <span class="hide-m">(사이트 집계 <b class="num">${hm(s.latest.sourceAt)}</b>)</span>` : ""}${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
     : '<b class="warn">관측 없음</b>';
-  const ok = !loadError && !m.stale && !b.stale;
+  const ok = !loadError && (closed("melon") || !m.stale) && (closed("berriz") || !b.stale);
   const html = `<span class="live${ok ? "" : " off"}"><i></i><b>1분 간격 수집</b></span>
-    <span>멜론 ${site(m)}</span><span>베리즈 ${site(b)}</span>
+    <span>멜론 ${site(m, "melon")}</span><span>베리즈 ${site(b, "berriz")}</span>
     ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${Math.round(P.live.skewMs / 1000)}초</b></span>` : ""}
     ${paused
       ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
@@ -429,12 +434,22 @@ function renderStatus() {
 }
 function render() { if (P) { if (VIEW === "global") renderGlobal(); else renderSite(VIEW); } }
 function show(view) {
-  VIEW = VIEWS.includes(view) ? view : "global";
+  VIEW = OPEN_VIEWS.includes(view) ? view : OPEN_VIEWS[0];
   for (const k of VIEWS) { $("#view-" + k).hidden = k !== VIEW; $("#tab-" + k).setAttribute("aria-selected", k === VIEW); }
   try { if (location.hash !== "#" + VIEW) history.replaceState(null, "", location.search + "#" + VIEW); } catch (e) {}
   render();
 }
-document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
+// 점검 중인 탭: 잠그고 "점검 중" 표시. 누르면 안내만 띄운다.
+for (const k of CLOSED_TABS) {
+  const t = $("#tab-" + k);
+  t.classList.add("closed"); t.setAttribute("aria-disabled", "true");
+  t.insertAdjacentHTML("beforeend", '<em class="mt">점검 중</em>');
+}
+document.querySelector(".tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-view]"); if (!b) return;
+  if (CLOSED_TABS.includes(b.dataset.view)) { toast("점검 중입니다. 준비되면 다시 열겠습니다."); return; }
+  show(b.dataset.view);
+});
 window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 
 document.querySelector("main").addEventListener("click", e => {
@@ -527,5 +542,5 @@ $("#copyBtn").addEventListener("click", () => {
   });
 });
 
-show(location.hash.slice(1) || "global");
+show(location.hash.slice(1) || OPEN_VIEWS[0]);
 refresh();

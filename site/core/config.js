@@ -60,3 +60,8 @@ export const COLLECT = {
 };
 
 export const PIN_DEFAULT = "rescene";
+
+// 점검 중(2026-10-30 사용자 요청): 30팀 예측 음원 점수와 베리즈 수집 방법이 정해질 때까지 닫아 둔다.
+// tabs: 화면에서 잠글 탭(눌러도 열리지 않고 "점검 중" 표시), sites: 수집을 멈출 사이트(Worker·상태 확인이 건너뜀).
+// 다시 열 때는 이 목록에서 빼면 된다.
+export const MAINTENANCE = { tabs: ["global", "berriz"], sites: ["berriz"] };
