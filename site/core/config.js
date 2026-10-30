@@ -49,7 +49,12 @@ export const RULES = {
   cutoff: 10,          // TOP10 경계
   siteMax: 10,         // 사이트별 투표 만점
   judgeScore: 20,      // 비공개 심사 점수(계산에서 뺌)
-  provisionalMax: 80,  // 화면 합산 만점(음원 60 + 멜론 10 + 베리즈 10)
+  // 음원 점수를 합산에 넣을지(2026-10-30 사용자 요청: 30팀 예측 음원 점수를 받을 때까지 false).
+  // false: 투표 점수(멜론 10 + 베리즈 10)만 합산한 20점 만점 순위, 30팀 모두 순위를 매김.
+  // true:  음원 + 멜론 + 베리즈 80점 만점 잠정 순위(음원 점수 없는 팀은 "음원 점수 미확인"으로 따로).
+  useChart: false,
+  chartMax: 60,        // 음원 점수 만점(합산 비중 60%)
+  get provisionalMax() { return (this.useChart ? this.chartMax : 0) + 2 * this.siteMax; },   // 화면 합산 만점
   chartEstimated: true // 음원 점수가 공식 값이 아니라 예측값이면 true(화면에 "예측" 표시)
 };
 
@@ -65,7 +70,8 @@ export const COLLECT = {
 export const PIN_DEFAULT = "rescene";
 
 // 점검 중(2026-10-30 사용자 요청): 30팀 예측 음원 점수와 베리즈 수집 방법이 정해질 때까지 닫아 둔다.
-// 베리즈는 GitHub 수집으로 해결돼 10/30 10:40에 열었다. 글로벌 TOP10은 30팀 예측 음원 점수를 받을 때까지 닫음.
+// 베리즈는 GitHub 수집으로 해결돼 10/30 10:40에 열었다. 글로벌 TOP10은 10/30 사용자 요청으로
+// 음원 점수 없이 투표 점수만 합산해 열었다(RULES.useChart = false).
 // tabs: 화면에서 잠글 탭(눌러도 열리지 않고 "점검 중" 표시), sites: 상태줄에 "점검 중"으로 보이고 상태 확인(health.py)이 건너뛸 사이트.
 // 다시 열 때는 이 목록에서 빼면 된다.
-export const MAINTENANCE = { tabs: ["global"], sites: [] };
+export const MAINTENANCE = { tabs: [], sites: [] };

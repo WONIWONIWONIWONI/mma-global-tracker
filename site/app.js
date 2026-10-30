@@ -131,7 +131,7 @@ function renderGlobal() {
     </div>`;
 
     // 넓은 화면은 표, 좁은 화면(휴대폰)은 한 줄 요약 목록(누르면 득표수·역전 필요 표가 펼쳐짐)을 보여 준다
-    const est = RULES.chartEstimated ? "(예측)" : "";
+    const est = RULES.chartEstimated ? "(예측)" : "", UC = RULES.useChart;   // UC false: 투표 점수만 합산(음원 열 없음)
     const votes = x => x == null ? "관측 없음" : fmt(x) + "표";
     const UNRANKED = "음원 점수 미확인 · 합산 순위 없음";
     let rows = "", mrows = "";
@@ -139,13 +139,13 @@ function renderGlobal() {
       let ch = r.rank == null ? "" : muted("–");
       if (prevRanks && prevRanks[r.id] != null && r.rank != null) { const d = prevRanks[r.id] - r.rank; if (d > 0) ch = `<span class="up">▲${d}</span>`; else if (d < 0) ch = `<span class="down">▼${-d}</span>`; }
       if (r.rank == null && (i === 0 || R[i - 1].rank != null)) {
-        rows += `<tr class="sep"><td colspan="10">${UNRANKED}</td></tr>`;
+        rows += `<tr class="sep"><td colspan="${UC ? 10 : 9}">${UNRANKED}</td></tr>`;
         mrows += `<li class="sep">${UNRANKED}</li>`;
       }
       const gapTxt = r.gapAhead != null ? "−" + f2(r.gapAhead) : r.rank === 1 ? "선두" : "";
       rows += `<tr class="${r.k === G.pin ? "pin" : ""}">
         <td class="r">${r.rank ?? muted("–")}</td><td class="ch">${ch}</td><td class="nm">${esc(r.name)}</td>
-        <td class="num">${f2(r.chart)}</td>
+        ${UC ? `<td class="num">${f2(r.chart)}</td>` : ""}
         <td class="num">${f2(r.ms)}<span class="sub">${votes(r.mv)}</span></td>
         <td class="num">${f2(r.bs)}<span class="sub">${votes(r.bv)}</span></td>
         <td><div class="tot"><span class="stack" aria-hidden="true"><i style="width:${(r.chart || 0) / MAXT * 100}%;background:var(--base)"></i><i style="width:${r.ms / MAXT * 100}%;background:var(--melon)"></i><i style="width:${r.bs / MAXT * 100}%;background:var(--berriz)"></i></span><b>${f2(r.total)}</b></div></td>
@@ -155,30 +155,32 @@ function renderGlobal() {
       const oid = "rm-" + r.id;
       mrows += `<li class="${r.k === G.pin ? "pin" : ""}"><details id="${oid}"${openState[oid] ? " open" : ""}><summary>
         <span class="r">${r.rank ?? "–"}</span><span class="ch">${ch}</span>
-        <span class="nm">${esc(r.name)}<small>${f2(r.chart)} + <em class="mc">${f2(r.ms)}</em> + <em class="bc">${f2(r.bs)}</em></small></span>
+        <span class="nm">${esc(r.name)}<small>${UC ? f2(r.chart) + " + " : ""}<em class="mc">${f2(r.ms)}</em> + <em class="bc">${f2(r.bs)}</em></small></span>
         <span class="tt"><b class="num">${f2(r.total)}</b><small class="num">${gapTxt}</small></span></summary>
         <div class="more"><div>멜론 ${votes(r.mv)} · 베리즈 ${votes(r.bv)}</div>
           ${r.gapAhead != null ? `<div>앞 순위를 넘으려면 · 멜론만 ${needHTML(r.needMelon)} · 베리즈만 ${needHTML(r.needBerriz)}</div>` : ""}</div></details></li>`;
       if (r.rank === CUT) {
-        rows += `<tr class="cut" aria-hidden="true"><td colspan="10"><span>TOP 10</span></td></tr>`;
+        rows += `<tr class="cut" aria-hidden="true"><td colspan="${UC ? 10 : 9}"><span>TOP 10</span></td></tr>`;
         mrows += `<li class="cut" aria-hidden="true"><span>TOP 10</span></li>`;
       }
     });
     table = `<div class="tscroll rank-wide"><table class="rank">
-      <thead><tr><th>순위</th><th>변동</th><th>후보</th><th>음원${est}</th><th>멜론</th><th>베리즈</th><th>합산</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
+      <thead><tr><th>순위</th><th>변동</th><th>후보</th>${UC ? `<th>음원${est}</th>` : ""}<th>멜론</th><th>베리즈</th><th>${UC ? "합산" : "투표 합산"}</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
       <ol class="rank-m">${mrows}</ol>
-      <p class="hint-m">작은 숫자는 음원${est} + <em class="mc">멜론</em> + <em class="bc">베리즈</em> 점수입니다. 줄을 누르면 득표수와 역전에 필요한 표가 보입니다.</p>
-      <div class="legend"><span><i style="background:var(--base)"></i>음원 점수${est || "(고정)"}</span><span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span></div>`;
+      <p class="hint-m">작은 숫자는 ${UC ? `음원${est} + ` : ""}<em class="mc">멜론</em> + <em class="bc">베리즈</em> 점수입니다. 줄을 누르면 득표수와 역전에 필요한 표가 보입니다.</p>
+      <div class="legend">${UC ? `<span><i style="background:var(--base)"></i>음원 점수${est || "(고정)"}</span>` : ""}<span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span></div>`;
   } else table = `<p class="hold">${hold}</p>`;
 
   const snapOpts = snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("");
   v.innerHTML = `${cards}
   <div class="panel">
-    <div class="phead"><div><h2>${G.snap === "live" ? "실시간 잠정 순위" : mdK(G.snap - 1) + " 마감 순위"}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
+    <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
       <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
-    <p class="note">${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다. 투표 점수는 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
+    <p class="note">${RULES.useChart
+      ? `${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다.`
+      : `<b>투표 점수만 합산한 ${MAXT}점 만점 순위입니다.</b> 실제 결과에 들어가는 음원 점수 ${RULES.chartMax}점과 심사 점수 ${RULES.judgeScore}점은 빠져 있어 최종 순위와 다를 수 있습니다.`} 투표 점수는 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점을 나눕니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.</p>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>점수 추이</h2><p>10분 간격 관측으로 다시 계산한 합산 점수</p></div>
@@ -347,7 +349,9 @@ function renderSite(key) {
 const shareBtn = kind => `<button type="button" class="btn sbtn" data-share="${kind}">이미지 공유</button>`;
 const stampOf = ts => `${mdK(ts)} ${hm(ts)}`;
 const fileStamp = ts => { const d = kd(ts); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + "-" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()); };
-const rankNote = () => `비공식 트래커 · ${RULES.chartEstimated ? "음원 점수 예측값 · " : ""}심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`;
+const rankNote = () => RULES.useChart
+  ? `비공식 트래커 · ${RULES.chartEstimated ? "음원 점수 예측값 · " : ""}심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`
+  : `비공식 트래커 · 투표 점수(멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax})만 합산, 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영`;
 const IV_LABEL = { "5m": "5분봉", "30m": "30분봉", "1h": "1시간봉", "1d": "일봉" };
 
 // kind: g-rank, g-trend, <site>-list, <site>-line, <site>-candle. 지금 화면에 보이는 선택(날짜·후보·구간)을 그대로 쓴다.
@@ -357,8 +361,8 @@ async function makeShare(kind) {
     if (!R) throw new Error("순위 데이터 없음");
     const live = G.snap === "live", ts = live ? Math.max(P.live.melonAt, P.live.berrizAt) : G.snap;
     const m = {
-      title: live ? "MMA 2026 글로벌 TOP10 잠정 순위" : `MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`,
-      sub: when, sample: P.sample, cutoff: RULES.cutoff, note: rankNote(), chartLabel: RULES.chartEstimated ? "음원(예측)" : "음원",
+      title: live ? (RULES.useChart ? "MMA 2026 글로벌 TOP10 잠정 순위" : "MMA 2026 글로벌 TOP10 투표 점수 순위") :`MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`,
+      sub: when, sample: P.sample, cutoff: RULES.cutoff, note: rankNote(), chartLabel: !RULES.useChart ? null : RULES.chartEstimated ? "음원(예측)" : "음원",
       rows: R.map(r => ({ rank: r.rank, change: prevRanks && prevRanks[r.id] != null ? prevRanks[r.id] - r.rank : null, name: r.name,
         chart: r.chart, ms: r.ms, bs: r.bs, total: r.total, gap: r.gapAhead, pin: r.k === G.pin }))
     };
@@ -525,8 +529,10 @@ function summary() {
     const L = P.live;
     if (!L || L.held) return "MMA 2026 글로벌 TOP10: 지금은 합산을 보류 중입니다.";
     const CUT = RULES.cutoff;
-    return [`MMA 2026 글로벌 TOP10 잠정 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, 심사 ${RULES.judgeScore}점 미반영)`,
-      ...L.rows.slice(0, CUT).map(r => `${r.rank}. ${r.name} ${f2(r.total)} (음원 ${f2(r.chart)} + 멜론 ${f2(r.ms)} + 베리즈 ${f2(r.bs)})`),
+    return [RULES.useChart
+        ? `MMA 2026 글로벌 TOP10 잠정 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, 심사 ${RULES.judgeScore}점 미반영)`
+        : `MMA 2026 글로벌 TOP10 투표 점수 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, ${RULES.provisionalMax}점 만점 · 음원·심사 미반영)`,
+      ...L.rows.slice(0, CUT).map(r => `${r.rank}. ${r.name} ${f2(r.total)} (${RULES.useChart ? `음원 ${f2(r.chart)} + ` : ""}멜론 ${f2(r.ms)} + 베리즈 ${f2(r.bs)})`),
       `컷: 10위와 11위 ${f2(L.rows[CUT - 1].total - L.rows[CUT].total)}점 차`].join("\n");
   }
   const s = P.sites[VIEW]; if (!s.latest) return s.name + " 관측이 아직 없습니다.";

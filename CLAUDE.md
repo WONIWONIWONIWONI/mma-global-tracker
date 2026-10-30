@@ -118,7 +118,12 @@ LESSERAFIM 42.82, BOYNEXTDOOR 42.37, i-dle 42.05, Stray Kids 41.80, IU 39.80, RE
 ## 아직 넣지 않은 것 (다음 작업)
 
 - 이미지 공유 확장: 시간대별 증가량·일일 득표량·마감 기록 표는 아직 공유 버튼이 없다.
-- 글로벌 TOP10 탭 다시 열기: 사용자가 30팀 예측 음원 점수를 주면 config.js chart 값을 채우고 MAINTENANCE.tabs를 []로.
+- 음원 점수 넣기: 사용자가 30팀 예측 음원 점수를 주면 config.js CANDIDATES의 chart 값을 채우고 `RULES.useChart = true`.
+  지금(10/30~)은 글로벌 탭을 열어 두되 `useChart: false`로 투표 점수(멜론 10 + 베리즈 10)만 합산한 20점 만점 순위를
+  보여 준다(음원 열 없음, "음원·심사 미반영" 문구, 공유 이미지·요약 복사도 같은 기준).
+- GitHub 보조 수집(10/30): `scripts/github_collect.py`가 베리즈 + 멜론 1분 보조 수집. Worker `/api/ingest/melon`은 빠진 분만 채움.
+  보내기 실패분은 보관 → 5분마다 재전송, 실행 종료 시 `backup/pending.json`으로 저장소에 남김. 차단(403 3회)이면
+  `scripts/blocked-<사이트>` 파일을 남기고 그 사이트 조회 중단. 백업은 끝난 지 3일 이내 날짜를 매번 다시 만든다.
 - 12시간 표차 예측은 넣지 않는다(점수 구조가 달라 검증이 안 됨).
 
 ## 기술 구성 (정한 방향)
