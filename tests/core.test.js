@@ -120,6 +120,14 @@ test("합산: 멜론 20초 + 베리즈 10분 간격이어도 보류하지 않고
   assert.equal(p.trend2.totals.length, CANDIDATES.length);
 });
 
+test("변동 기준: 두 방식 모두 오늘 00시 / 전날 마감의 같은 방식 순위와 비교", async () => {
+  const { getPayload } = await import("../site/core/mockApi.js");
+  const p = getPayload(Date.now());
+  assert.ok(p.live.compare && p.live.compare.ranks && p.live.compare.ranks2);
+  const s = p.snapshots.find(x => x.prevRanks);
+  assert.ok(s && s.prevRanks2 && Object.keys(s.prevRanks2).length === CANDIDATES.length);
+});
+
 test("점수 차 표시: 근소한 차이는 소수 셋째 자리, 같으면 동점", () => {
   assert.equal(fgap(1.234), "1.23");
   assert.equal(fgap(0.0042), "0.004");

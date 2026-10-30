@@ -14,6 +14,11 @@ function votesAt(M, B, t) {
   return m && b ? [m, b] : null;
 }
 function standingsAt(M, B, t) { const v = votesAt(M, B, t); return v ? standings(...v) : null; }
+// t 시점의 순위를 두 방식으로(변동 비교용). ranks: 방식 1, ranks2: 방식 2
+function ranksAt(M, B, t) {
+  const v = votesAt(M, B, t);
+  return v ? { ranks: rankMap(standings(...v)), ranks2: rankMap(combinedStandings(...v, { need: false })) } : null;
+}
 
 export function buildPayload(obsBySite, now, { sample = false } = {}) {
   const M = obsBySite.melon || [], B = obsBySite.berriz || [];
@@ -45,8 +50,8 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
     if (!held) {
       Object.assign(live, standings(mL.votes, bL.votes));
       const m0 = kstMidnight(now);
-      const p = m0 > start ? standingsAt(M, B, m0) : null;
-      if (p) live.compare = { at: m0, ranks: rankMap(p) };
+      const p = m0 > start ? ranksAt(M, B, m0) : null;
+      if (p) live.compare = { at: m0, ...p };
     }
   }
 
@@ -56,12 +61,12 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
     for (let d = kstMidnight(start) + DAY; d <= now; d += DAY) {
       const st = standingsAt(M, B, d);
       if (!st) continue;
-      const prev = d - DAY > start ? standingsAt(M, B, d - DAY) : null;
-      snapshots.push({ at: d, ...st, prevRanks: prev ? rankMap(prev) : null });
+      const prev = d - DAY > start ? ranksAt(M, B, d - DAY) : null;
+      snapshots.push({ at: d, ...st, prevRanks: prev ? prev.ranks : null, prevRanks2: prev ? prev.ranks2 : null });
     }
   }
 
-  // 점수 추이(10분 간격). trend 는 방식 1, trend2 는 방식 2(득표율 기준, 참고용)로 같은 시각들을 계산한다.
+  // 점수 추이(10분 간격). trend 는 방식 1, trend2 는 방식 2(득표율 기준)로 같은 시각들을 계산한다.
   const newTrend = () => ({ t: [], totals: CANDIDATES.map(() => []), g12: [], gcut: [] });
   const trend = newTrend(), trend2 = newTrend();
   const push = (tr, t, st) => {

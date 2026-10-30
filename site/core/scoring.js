@@ -45,10 +45,10 @@ export function standings(melonVotes, berrizVotes) {
   return { rows, melonMax: m.max, berrizMax: b.max };
 }
 
-// 방식 2(참고용, 사용자 요청 10/30, @kowartermelon 예측표와 같은 계산):
+// 방식 2(득표율 기준, 사용자 요청 10/30, @kowartermelon 예측표와 같은 계산). 공지 "1:1 합산"의 또 다른 해석으로 방식 1과 같은 무게로 보여 준다.
 // 두 사이트 전체 표가 1:1이 되도록 베리즈 표에 (멜론 30팀 표 합 ÷ 베리즈 30팀 표 합)을 곱해 멜론 표에 더한다
-// (= 두 사이트 득표율을 더한 것과 같은 순서). 이 환산 합계가 가장 큰 후보를 투표 만점(20점)으로 두고 비율대로 나눈다.
-// 공지 방식이 확인된 것은 아니고 "이렇게 계산하면 어떻게 되나"를 보는 참고용. 값이 없는 사이트는 0표로 계산하고 missing 표시.
+// (= 두 사이트 득표율을 더한 것과 같은 순서). 이 합계가 가장 큰 후보를 투표 만점(20점)으로 두고 비율대로 나눈다.
+// 값이 없는 사이트는 0표로 계산하고 missing 표시.
 const tally = a => a.reduce((s, v) => s + (v ?? 0), 0);
 function weighted(mv, bv) {
   const M = tally(mv), B = tally(bv), ratio = B > 0 ? M / B : 0;

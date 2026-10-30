@@ -64,7 +64,8 @@ function at(ser, ts) {
 const vAt = (ser, k, ts) => { const i = at(ser, ts); return i < 0 ? null : ser.v[i][k]; };
 
 /* ───────── 화면 상태 ───────── */
-// method: 투표 점수 계산 방식. "1" 공지 방식(사이트마다 10점, 1:1 합산), "2" 참고용(두 사이트 표를 더해 20점 환산)
+// method: 투표 점수 계산 방식(공지 "1:1 합산"의 두 해석, 같은 무게로 보여 줌).
+//   "1" 사이트 1위 기준(사이트마다 1위를 10점, 1:1 합산), "2" 득표율 기준(베리즈 표를 멜론 전체 표에 맞춰 더한 뒤 1위를 20점)
 const G = { snap: "live", trend: "total", range: "all", pin: 0, sel: null, method: "1" };
 try { if (localStorage.getItem("mma-method") === "2") G.method = "2"; } catch (e) {}
 const ST = {};
@@ -109,11 +110,12 @@ function globalData() {
     when = `${mdK(G.snap - 1)} 마감 · ${md(G.snap)} 00:00 관측`;
   }
   let R = data ? data.rows.map(r => ({ ...r, k: K[r.id] })) : null, ratio = null;
-  // 방식 2: 같은 득표수로 다시 계산하고, 변동 열은 방식 1 순위와 비교한다
+  // 방식 2: 같은 득표수로 다시 계산한다. 변동 열은 방식 1과 같은 기준(오늘 00시 / 전날 마감)의 방식 2 순위와 비교한다
   if (R && G.method === "2") {
     const mv = [], bv = [];
     for (const r of R) { mv[r.k] = r.mv; bv[r.k] = r.bv; }
-    prevRanks = Object.fromEntries(R.map(r => [r.id, r.rank])); cmp = "방식 1 순위 대비";
+    prevRanks = (G.snap === "live" ? L.compare && L.compare.ranks2 : data.prevRanks2) || null;
+    if (!prevRanks) cmp = "";
     const cs = combinedStandings(mv, bv);
     R = cs.rows.map(r => ({ ...r, k: K[r.id] })); ratio = cs.ratio;
   }
@@ -134,10 +136,14 @@ function renderGlobal() {
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     // 음원 점수를 빼고 투표 점수만 합산하는 동안은 카드 위에 기준을 크게 적는다(캡처로 퍼질 때 오해 방지)
-    const basis = M2 ? `<p class="basis m2"><b>방식 2 · 참고용</b> 두 사이트 전체 표가 1:1이 되도록 베리즈 표에 <b class="num">×${rx}</b>(멜론 전체 표 ÷ 베리즈 전체 표)를 곱해 멜론 표에 더하고, 이 환산 합계 1위를 투표 ${2 * RULES.siteMax}점 만점으로 두어 비율대로 나눈 계산입니다. 공지의 "1:1 합산"을 다르게 해석한 것으로, 공식 확인된 방식은 아닙니다.</p>`
-      : RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`;
+    // 계산 방식 안내: 두 방식을 같은 무게로, 같은 형식으로 적는다
+    const COMMON = `공지의 "각 투표 결과를 1:1로 합산"은 두 가지로 읽을 수 있어 두 방식을 함께 보여 줍니다. 순위표 위 버튼으로 바꿀 수 있습니다.`;
+    const basis = (RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`)
+      + (M2
+        ? `<p class="basis"><b>방식 2 · 득표율 기준</b> 두 사이트 전체 표가 1:1이 되도록 베리즈 표에 <b class="num">×${rx}</b>(멜론 전체 표 ÷ 베리즈 전체 표)를 곱해 멜론 표와 더하고, 이 합계 1위를 투표 ${2 * RULES.siteMax}점으로 두어 비율대로 나눕니다. ${COMMON}</p>`
+        : `<p class="basis"><b>방식 1 · 사이트 1위 기준</b> 멜론과 베리즈에서 각각 1위 득표수를 ${RULES.siteMax}점으로 두어 비율대로 나누고, 두 점수를 1:1로 더해 투표 ${2 * RULES.siteMax}점을 만듭니다. ${COMMON}</p>`);
     cards = `${basis}<div class="cards">
-      <div class="card first"><span class="k">1위 (${M2 ? "방식 2" : RULES.useChart ? "잠정" : "투표 점수"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬</span></div>
+      <div class="card first"><span class="k">1위 (${M2 ? "방식 2" : "방식 1"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬</span></div>
       <div class="card cut"><span class="k">TOP10 컷${RULES.useChart ? "" : " (투표 점수)"}</span>
         <span class="cutpair"><span><i>10위</i><b>${esc(R[CUT - 1].name)}</b><em>${f2(R[CUT - 1].total)}</em></span><span><i>11위</i><b>${esc(R[CUT].name)}</b><em>${f2(R[CUT].total)}</em></span></span>
         <span class="v">${fgap(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span></div>
@@ -190,10 +196,10 @@ function renderGlobal() {
       }
     });
     table = `<div class="tscroll rank-wide"><table class="rank">
-      <thead><tr><th>순위</th><th>${M2 ? "방식 1 대비" : "변동"}</th><th>후보</th>${UC ? `<th>음원${est}</th>` : ""}${M2 ? `<th>환산 합계 표</th><th>투표 점수</th>` : `<th>멜론</th><th>베리즈</th>`}<th>${UC ? "합산" : "투표 합산"}</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
+      <thead><tr><th>순위</th><th>변동</th><th>후보</th>${UC ? `<th>음원${est}</th>` : ""}${M2 ? `<th>환산 합계 표</th><th>투표 점수</th>` : `<th>멜론</th><th>베리즈</th>`}<th>${UC ? "합산" : "투표 합산"}</th><th>앞 순위와</th><th>역전 · 멜론만</th><th>역전 · 베리즈만</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
       <ol class="rank-m">${mrows}</ol>
-      <p class="hint-m">작은 숫자는 ${UC ? `음원${est} + ` : ""}${M2 ? `투표 점수(${2 * RULES.siteMax}점 만점)이고, 화살표는 방식 1 순위와 비교한 것` : `<em class="mc">멜론</em> + <em class="bc">베리즈</em> 점수`}입니다. 줄을 누르면 득표수와 역전에 필요한 표가 보입니다.</p>
+      <p class="hint-m">작은 숫자는 ${UC ? `음원${est} + ` : ""}${M2 ? `투표(${2 * RULES.siteMax}점) 점수` : `<em class="mc">멜론</em> + <em class="bc">베리즈</em> 점수`}입니다. 줄을 누르면 득표수와 역전에 필요한 표가 보입니다.</p>
       <div class="legend">${UC ? `<span><i style="background:var(--base)"></i>음원 점수${est || "(고정)"}</span>` : ""}${M2
         ? `<span><i style="background:var(--melon)"></i><i style="background:var(--berriz)"></i>투표 ${2 * RULES.siteMax}점(색은 환산 합계 중 멜론·베리즈 몫)</span>`
         : `<span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span>`}</div>`;
@@ -202,18 +208,18 @@ function renderGlobal() {
   const snapOpts = snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("");
   v.innerHTML = `${cards}
   <div class="panel">
-    <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}${M2 ? ' <span class="mtag">방식 2</span>' : ""}</h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
+    <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
       <div class="ctrl"><span class="seg" role="group" aria-label="투표 점수 계산 방식">${[["1", "방식 1 · 사이트 1위 기준"], ["2", "방식 2 · 득표율 기준"]].map(([k, l]) => `<button type="button" data-g="method" data-v="${k}" aria-pressed="${G.method === k}">${l}</button>`).join("")}</span>
         <label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
     <p class="note">${RULES.useChart
       ? `${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다.`
       : `<b>투표 점수만 합산한 ${MAXT}점 만점 순위입니다.</b> 실제 결과에 들어가는 음원 점수 ${RULES.chartMax}점과 심사 점수 ${RULES.judgeScore}점은 빠져 있어 최종 순위와 다를 수 있습니다.`} ${M2
-      ? `<b>방식 2(득표율 기준, 참고용)</b>: 베리즈 표 × ${rx} + 멜론 표를 환산 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다(두 사이트 득표율을 더한 것과 같은 순서). 지금은 베리즈 1표가 멜론 약 ${rx}표와 같습니다. 역전에 필요한 표는 표가 늘면 배수도 바뀌는 것까지 다시 계산했습니다. 아래 점수 추이도 방식 2로 계산합니다(마감 기록의 순위 변동은 방식 1 순위 대비).`
-      : `<b>방식 1(사이트 1위 기준)</b>: 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점씩 나눠 1:1로 더합니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산입니다.`}</p>
+      ? `<b>방식 2(득표율 기준)</b>: 베리즈 표 × ${rx} + 멜론 표를 이 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다. 지금은 베리즈 1표가 멜론 약 ${rx}표와 같고, 이 배수는 득표 총수가 바뀌면 함께 바뀝니다.`
+      : `<b>방식 1(사이트 1위 기준)</b>: 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점씩 나눠 1:1로 더합니다. 사이트 1위가 바뀌면 그 사이트의 기준도 바뀝니다.`} 변동은 오늘 00시(마감 기록은 전날 마감) 같은 방식 순위와 비교합니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산이며, 아래 점수 추이도 고른 방식으로 계산합니다.</p>
   </div>
   <div class="panel">
-    <div class="phead"><div><h2>점수 추이${M2 ? ' <span class="mtag">방식 2</span>' : ""}</h2><p>10분 간격 관측으로 다시 계산한 합산 점수 · ${M2 ? "방식 2(득표율 기준)" : "방식 1(사이트 1위 기준)"}</p></div>
+    <div class="phead"><div><h2>점수 추이<span class="mtag">방식 ${G.method}</span></h2><p>10분 간격 관측으로 다시 계산한 합산 점수 · ${M2 ? "방식 2(득표율 기준)" : "방식 1(사이트 1위 기준)"}</p></div>
       <div class="ctrl">
         <span class="seg">${[["total", "합산 점수"], ["g12", "1·2위 차"], ["cut", "10·11위 차"]].map(([k, l]) => `<button type="button" data-g="trend" data-v="${k}" aria-pressed="${G.trend === k}">${l}</button>`).join("")}</span>
         <span class="seg">${[["24h", "24시간"], ["all", "전체"]].map(([k, l]) => `<button type="button" data-g="range" data-v="${k}" aria-pressed="${G.range === k}">${l}</button>`).join("")}</span>
@@ -383,6 +389,10 @@ function renderSite(key) {
 const shareBtn = kind => `<button type="button" class="btn sbtn" data-share="${kind}">이미지 공유</button>`;
 const stampOf = ts => `${mdK(ts)} ${hm(ts)}`;
 const fileStamp = ts => { const d = kd(ts); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + "-" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()); };
+// 두 방식의 한 줄 설명(이미지·요약 복사용). rx: 방식 2의 베리즈 배수(없으면 "시점별 배수")
+const methodNote = (m, rx) => m === "2"
+  ? `방식 2(득표율 기준): 베리즈 표 ×${rx == null ? "시점별 배수" : rx.toFixed(2)}로 두 사이트 전체 표를 1:1로 맞춰 멜론 표와 더한 뒤 1위를 ${2 * RULES.siteMax}점으로 환산`
+  : `방식 1(사이트 1위 기준): 사이트마다 1위 득표수를 ${RULES.siteMax}점으로 환산해 1:1로 합산`;
 const rankNote = () => RULES.useChart
   ? `비공식 트래커 · ${RULES.chartEstimated ? "음원 점수 예측값 · " : ""}심사 ${RULES.judgeScore}점 미반영, ${RULES.provisionalMax}점 만점 잠정 순위`
   : `비공식 트래커 · 투표 점수(멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax})만 합산, 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영`;
@@ -395,14 +405,14 @@ async function makeShare(kind) {
     if (!R) throw new Error("순위 데이터 없음");
     const live = G.snap === "live", ts = live ? Math.max(P.live.melonAt, P.live.berrizAt) : G.snap, M2 = G.method === "2";
     const m = {
-      title: (live ? (RULES.useChart ? "MMA 2026 글로벌 TOP10 잠정 순위" : "MMA 2026 글로벌 TOP10 투표 점수 순위") :`MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`) + (M2 ? " · 방식 2(득표율 기준)" : ""),
-      sub: when + (M2 ? " · 변동은 방식 1 순위 대비" : ""), sample: P.sample, cutoff: RULES.cutoff, combined: M2, voteMax: 2 * RULES.siteMax,
-      note: rankNote() + (M2 ? ` · 방식 2(참고용): 베리즈 표 ×${ratio.toFixed(2)}로 두 사이트 전체 표를 1:1로 맞춰 더한 뒤 ${2 * RULES.siteMax}점 환산` : ""),
+      title: (live ? (RULES.useChart ? "MMA 2026 글로벌 TOP10 잠정 순위" : "MMA 2026 글로벌 TOP10 투표 점수 순위") :`MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`) + (M2 ? " · 방식 2(득표율 기준)" : " · 방식 1(사이트 1위 기준)"),
+      sub: when, sample: P.sample, cutoff: RULES.cutoff, combined: M2, voteMax: 2 * RULES.siteMax,
+      note: rankNote() + " · " + methodNote(G.method, ratio),
       chartLabel: !RULES.useChart ? null : RULES.chartEstimated ? "음원(예측)" : "음원",
       rows: R.map(r => ({ rank: r.rank, change: prevRanks && prevRanks[r.id] != null && r.rank != null ? prevRanks[r.id] - r.rank : null, name: r.name,
         chart: r.chart, ms: r.ms, bs: r.bs, sum: r.sum, vote: r.vote, total: r.total, gap: r.gapAhead, pin: r.k === G.pin }))
     };
-    return { canvas: await rankImage(m), html: rankHTML(m), title: m.title, name: `mma-top10-rank${M2 ? "-m2" : ""}-${fileStamp(ts)}` };
+    return { canvas: await rankImage(m), html: rankHTML(m), title: m.title, name: `mma-top10-rank-m${G.method}-${fileStamp(ts)}` };
   }
   const [key, part] = kind.split("-");
   if (part === "list") {
@@ -424,8 +434,8 @@ async function makeShare(kind) {
   let title, ts, note = "비공식 트래커";
   if (key === "g") {
     const M2 = G.method === "2";
-    ts = P.trend.t[P.trend.t.length - 1]; note = rankNote() + (M2 ? " · 방식 2(참고용): 두 사이트 득표율 기준(베리즈 표를 멜론 전체 표에 맞춰 환산)" : "");
-    title = `MMA 2026 글로벌 TOP10 · ${G.trend === "total" ? "합산 점수 추이" : G.trend === "g12" ? "1·2위 점수차 추이" : "10·11위 점수차 추이"}${M2 ? " · 방식 2" : ""}`;
+    ts = P.trend.t[P.trend.t.length - 1]; note = rankNote() + " · " + methodNote(G.method, null);
+    title = `MMA 2026 글로벌 TOP10 · ${G.trend === "total" ? "합산 점수 추이" : G.trend === "g12" ? "1·2위 점수차 추이" : "10·11위 점수차 추이"}${M2 ? " · 방식 2" : " · 방식 1"}`;
     if (G.trend !== "total") legend = [];
   } else {
     const D = siteData(key), S = ST[key]; ts = D.now;
@@ -575,7 +585,7 @@ function summary() {
     return [(RULES.useChart
         ? `MMA 2026 글로벌 TOP10 잠정 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, 심사 ${RULES.judgeScore}점 미반영)`
         : `MMA 2026 글로벌 TOP10 투표 점수 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, ${RULES.provisionalMax}점 만점 · 음원·심사 미반영)`)
-        + (M2 ? ` · 방식 2(참고용): 베리즈 표 ×${cs.ratio.toFixed(2)}로 두 사이트 전체 표를 1:1로 맞춰 더한 뒤 ${2 * RULES.siteMax}점 환산` : ""),
+        + " · " + methodNote(G.method, cs && cs.ratio),
       ...rows.slice(0, CUT).map(r => `${r.rank}. ${r.name} ${f2(r.total)} (${RULES.useChart ? `음원 ${f2(r.chart)} + ` : ""}${M2 ? `투표 ${f2(r.vote)}` : `멜론 ${f2(r.ms)} + 베리즈 ${f2(r.bs)}`})`),
       `컷: 10위와 11위 ${f2(rows[CUT - 1].total - rows[CUT].total)}점 차`].join("\n");
   }
