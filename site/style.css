@@ -149,7 +149,21 @@ table{border-collapse:collapse;width:100%}
 /* 글로벌 탭 맨 위 순위 기준(투표 점수만 합산하는 동안) */
 .basis{margin:0;padding:9px 12px;border:1px solid var(--line);border-left:4px solid var(--cut);border-radius:8px;background:var(--surface);font-size:13px;color:var(--muted);line-height:1.5}
 .basis b{color:var(--ink);margin-right:6px}
-.mtag{display:inline-block;vertical-align:middle;margin-left:6px;padding:1px 7px;border-radius:4px;background:var(--cut);color:var(--cut-ink);font-size:11.5px;font-weight:600;letter-spacing:.02em}
+/* 계산 방식 고르기: 두 방식을 같은 크기의 카드로 나란히. 고른 쪽은 강조색 테두리와 채운 동그라미 */
+.methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.mopt{display:flex;flex-direction:column;gap:4px;text-align:left;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow);cursor:pointer;color:var(--muted);transition:border-color .15s}
+.mopt:hover{border-color:var(--muted)}
+.mopt[aria-checked="true"]{border-color:var(--cut);box-shadow:inset 0 0 0 1px var(--cut)}
+.mopt .mh{display:flex;align-items:baseline;gap:8px;color:var(--ink);font-size:14.5px}
+.mopt .mh b{font-weight:600}
+.mopt .mh span{font-size:13px;color:var(--muted)}
+.mopt .dot{align-self:center;flex:none;width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted)}
+.mopt[aria-checked="true"] .dot{border-color:var(--cut);background:radial-gradient(circle,var(--cut) 0 3.5px,transparent 4px)}
+.mopt[aria-checked="true"] .mh span{color:var(--ink)}
+.mopt .md{font-size:12.5px;padding-left:22px;line-height:1.45}
+.mnote{grid-column:1/-1;margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+@media (max-width:640px){.methods{gap:8px}.mopt{padding:10px 11px}.mopt .mh{flex-wrap:wrap;gap:0 6px;font-size:14px}.mopt .mh span{font-size:12px;flex-basis:100%;padding-left:20px}.mopt .md{padding-left:0;font-size:12px}}
+.mtag{display:inline-block;vertical-align:middle;margin-left:8px;padding:1px 7px;border-radius:4px;background:var(--cut);color:var(--cut-ink);font-size:11.5px;font-weight:600;letter-spacing:.02em}
 .rank .sub em{font-style:normal}.rank .sub .mc{color:var(--melon)}.rank .sub .bc{color:var(--berriz)}
 .adj{color:var(--down);cursor:help}   /* 사이트 집계 조정으로 표가 줄어든 증가량 */
 

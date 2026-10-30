@@ -136,12 +136,15 @@ function renderGlobal() {
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     // 음원 점수를 빼고 투표 점수만 합산하는 동안은 카드 위에 기준을 크게 적는다(캡처로 퍼질 때 오해 방지)
-    // 계산 방식 안내: 두 방식을 같은 무게로, 같은 형식으로 적는다
-    const COMMON = `공지의 "각 투표 결과를 1:1로 합산"은 두 가지로 읽을 수 있어 두 방식을 함께 보여 줍니다. 순위표 위 버튼으로 바꿀 수 있습니다.`;
-    const basis = (RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`)
-      + (M2
-        ? `<p class="basis"><b>방식 2 · 득표율 기준</b> 두 사이트 전체 표가 1:1이 되도록 베리즈 표에 <b class="num">×${rx}</b>(멜론 전체 표 ÷ 베리즈 전체 표)를 곱해 멜론 표와 더하고, 이 합계 1위를 투표 ${2 * RULES.siteMax}점으로 두어 비율대로 나눕니다. ${COMMON}</p>`
-        : `<p class="basis"><b>방식 1 · 사이트 1위 기준</b> 멜론과 베리즈에서 각각 1위 득표수를 ${RULES.siteMax}점으로 두어 비율대로 나누고, 두 점수를 1:1로 더해 투표 ${2 * RULES.siteMax}점을 만듭니다. ${COMMON}</p>`);
+    // 계산 방식 고르기: 두 방식을 같은 무게로 나란히 둔 카드(누르면 바뀜). 각 카드에 한 줄 계산식.
+    const mopt = (k, name, sub, desc) => `<button type="button" class="mopt" role="radio" aria-checked="${G.method === k}" data-g="method" data-v="${k}">
+        <span class="mh"><i class="dot" aria-hidden="true"></i><b>${name}</b><span>${sub}</span></span><span class="md">${desc}</span></button>`;
+    const methods = `<div class="methods" role="radiogroup" aria-label="투표 점수 계산 방식">
+      ${mopt("1", "방식 1", "사이트 1위 기준", `사이트마다 1위 득표수 = ${RULES.siteMax}점, 두 사이트 점수를 1:1로 더함`)}
+      ${mopt("2", "방식 2", "득표율 기준", `베리즈 표 ×${rx || "배수"} + 멜론 표, 이 합계 1위 = ${2 * RULES.siteMax}점`)}
+      <p class="mnote">공지의 "각 투표 결과를 1:1로 합산"은 두 가지로 읽을 수 있어 두 방식을 함께 보여 줍니다. 배수 ${rx ? "×" + rx + "는" : "는"} 멜론 전체 표 ÷ 베리즈 전체 표로, 득표 총수에 따라 바뀝니다.</p>
+    </div>`;
+    const basis = (RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`) + methods;
     cards = `${basis}<div class="cards">
       <div class="card first"><span class="k">1위 (${M2 ? "방식 2" : "방식 1"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬</span></div>
       <div class="card cut"><span class="k">TOP10 컷${RULES.useChart ? "" : " (투표 점수)"}</span>
@@ -209,8 +212,7 @@ function renderGlobal() {
   v.innerHTML = `${cards}
   <div class="panel">
     <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
-      <div class="ctrl"><span class="seg" role="group" aria-label="투표 점수 계산 방식">${[["1", "방식 1 · 사이트 1위 기준"], ["2", "방식 2 · 득표율 기준"]].map(([k, l]) => `<button type="button" data-g="method" data-v="${k}" aria-pressed="${G.method === k}">${l}</button>`).join("")}</span>
-        <label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
+      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
     <p class="note">${RULES.useChart
       ? `${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다.`
