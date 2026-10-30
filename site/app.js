@@ -30,9 +30,9 @@ async function refresh() {
   catch (e) { loadError = e; console.error(e); if (!P) $("#view-" + VIEW).innerHTML = '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'; }
   finally {
     loading = false;
-    // 서버가 정한 간격을 따르고, 여러 화면이 같은 순간에 몰리지 않게 0~10초를 더한다
+    // 서버가 정한 간격을 따르고, 여러 화면이 같은 순간에 몰리지 않게 간격의 1/4(최대 10초)까지 무작위로 더한다
     refreshMs = USE_MOCK ? REFRESH_MS : Math.max(REFRESH_MS, remote.serverRefreshSec * 1000);
-    nextFetch = Date.now() + refreshMs + (USE_MOCK ? 0 : Math.random() * 10e3);
+    nextFetch = Date.now() + refreshMs + (USE_MOCK ? 0 : Math.random() * Math.min(10e3, refreshMs / 4));
     renderStatus();
   }
 }

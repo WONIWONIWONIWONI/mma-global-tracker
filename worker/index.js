@@ -94,7 +94,7 @@ async function ingestBerriz(env, req, now) {
  * 오늘 쓴 요청 수와 최근 요청 속도를 보고, 남은 한도를 초기화 시각까지 나눠 쓰도록 갱신 간격(60~600초)을 정해 둔다.
  * 화면은 API 응답의 refreshSec 를 따른다. 필요한 비밀값(대시보드에서 등록): CF_API_TOKEN(Account Analytics 읽기), CF_ACCOUNT_ID.
  */
-const DAILY_LIMIT = 100000, RESERVE = 0.1, REFRESH_MIN = 60, REFRESH_MAX = 600, USAGE_KEY = "m:usage";
+const DAILY_LIMIT = 100000, RESERVE = 0.1, REFRESH_MIN = 20, REFRESH_MAX = 600, USAGE_KEY = "m:usage";
 
 // 오늘(UTC) 요청 수를 15분 묶음으로 한 번에 가져온다(통계 API 조회 횟수를 아끼려고 한 번만 묻는다).
 async function usageToday(env, dayStart, at) {
@@ -126,9 +126,12 @@ export async function checkUsage(env, at) {
     ]);
     const prev = prevRow ? JSON.parse(prevRow.body).refreshSec : REFRESH_MIN;
     const left = DAILY_LIMIT * (1 - RESERVE) - used, minutesLeft = (dayEnd - at) / MIN;
-    const demandAt1m = recentPerMin * (prev / 60);   // 모두 1분 간격으로 받는다면 분당 요청 수
-    const allowed = left / minutesLeft;              // 초기화까지 남은 한도를 고르게 쓸 때 분당 요청 수
-    let refreshSec = left <= 0 ? REFRESH_MAX : Math.ceil(60 * demandAt1m / allowed / 30) * 30;
+    // 지금 간격(prev초)에서 분당 recentPerMin 요청이 왔다면, x초 간격일 때는 recentPerMin × prev / x.
+    // 이게 남은 한도를 초기화까지 고르게 쓸 때의 분당 요청 수(allowed) 이하가 되는 가장 짧은 x.
+    const allowed = left / minutesLeft;
+    let refreshSec = left <= 0 ? REFRESH_MAX : recentPerMin * prev / allowed;
+    // 1분 미만은 10초 단위, 그 이상은 30초 단위로 올림
+    refreshSec = refreshSec < 60 ? Math.ceil(refreshSec / 10) * 10 : Math.ceil(refreshSec / 30) * 30;
     refreshSec = Math.min(REFRESH_MAX, Math.max(REFRESH_MIN, refreshSec || REFRESH_MIN));
     const body = JSON.stringify({ refreshSec, used, recentPerMin: Math.round(recentPerMin), checkedAt: at });
     await env.DB.prepare("INSERT INTO blob (k, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at")
@@ -155,16 +158,17 @@ const INIT_HOURS = 7;   // 처음 열 때 주는 1분 간격 구간(화면의 6�
 
 // /api/init, /api/latest: 조각(keys)과 갱신 간격. withDays면 지난 날짜 목록도 준다(내용은 /history/날짜.json 으로 따로 받음).
 // 응답 크기가 투표 기간 길이와 상관없이 하루치 이하로 묶여 무료 플랜 CPU 한도(요청당 10ms)를 넘지 않는다.
-async function respond(env, now, keys, withDays) {
+async function respond(env, now, keys, withDays, maxAge = 30) {
   keys = [...keys, ...LATEST_KEYS];   // 20초 수집 최신값(같은 관측이 겹쳐도 화면이 관측 시각으로 하나만 남긴다)
   const stmts = [
-    env.DB.prepare(`SELECT body FROM blob WHERE k IN (${keys.map(() => "?").join(",")})`).bind(...keys),
+    // ORDER BY k: d: → h: → l: 순서(화면은 관측 시각으로 다시 정렬하지만 응답을 일정하게)
+    env.DB.prepare(`SELECT body FROM blob WHERE k IN (${keys.map(() => "?").join(",")}) ORDER BY k`).bind(...keys),
     env.DB.prepare("SELECT body FROM blob WHERE k = ?").bind(USAGE_KEY)
   ];
   if (withDays) stmts.push(env.DB.prepare("SELECT k FROM blob WHERE k >= 'd:' AND k < ? ORDER BY k").bind(dayKey(now)));
   const [blobs, meta, days] = await env.DB.batch(stmts);
   const dayList = days ? `"days":${JSON.stringify(days.results.map(r => r.k.slice(2)))},` : "";
-  return json(`{"now":${now},"sample":${SAMPLE},"refreshSec":${refreshFrom(meta.results[0], now)},${dayList}"lines":[${joinLines(blobs.results)}]}`, 30);
+  return json(`{"now":${now},"sample":${SAMPLE},"refreshSec":${refreshFrom(meta.results[0], now)},${dayList}"lines":[${joinLines(blobs.results)}]}`, maxAge);
 }
 
 // /history/YYYY-MM-DD.json: 끝난 날짜의 5분 간격 관측. 보통은 매일 밤 GitHub Actions가 만든 정적 파일이 먼저 나가고
@@ -204,9 +208,12 @@ export default {
           for (let i = 0; i < INIT_HOURS; i++) keys.push(hourKey(now - i * HOUR));
           return await respond(env, now, keys, true);
         }
-        // 이후 갱신마다: 최근 2시간의 1분 간격
+        // 5분마다: 최근 2시간의 1분 간격(그래프·기록용)
         case "/api/latest":
           return await respond(env, now, [hourKey(now), hourKey(now - HOUR)], false);
+        // 그 사이 갱신마다: 사이트별 최신 관측 한 줄씩(l: 조각만, 1~2KB)
+        case "/api/now":
+          return await respond(env, now, [], false, 10);   // 20초 갱신이 브라우저 캐시에 막히지 않게 짧게
         default:
           return error(404, "없는 주소입니다");
       }

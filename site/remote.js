@@ -2,8 +2,9 @@
 // Worker는 무료 플랜 CPU 한도(요청당 10ms) 때문에 계산하지 않고 미리 쌓아 둔 관측 조각만 내려준다.
 //   /api/init             처음 한 번(또는 오래 자리를 비웠다 돌아왔을 때): 오늘 5분 간격 + 최근 7시간 1분 간격 + 지난 날짜 목록
 //   /history/날짜.json    지난 날짜 하나의 5분 간격(보통 정적 파일이라 무료·무제한, 브라우저가 하루 동안 기억)
-//   /api/latest           이후 갱신마다: 최근 2시간의 1분 간격
-// 응답의 refreshSec 은 서버가 남은 요청 한도를 보고 정한 갱신 간격이다.
+//   /api/latest           5분마다: 최근 2시간의 1분 간격(그래프·기록용)
+//   /api/now              그 사이 갱신마다: 사이트별 최신 관측 한 줄씩(아주 작음, 멜론 20초 수집 값)
+// 응답의 refreshSec 은 서버가 남은 요청 한도를 보고 정한 갱신 간격이다(20초~10분).
 import { API_BASE } from "./settings.js";
 import { buildPayload } from "./core/api.js";
 import { MIN } from "./core/time.js";
@@ -11,8 +12,9 @@ import { MIN } from "./core/time.js";
 const store = { melon: new Map(), berriz: new Map() };
 const loadedDays = new Set();
 let allDays = [];
-let loaded = false, sample = false, lastOk = 0;
+let loaded = false, sample = false, lastOk = 0, lastFull = 0;
 export let serverRefreshSec = 60;
+const FULL_EVERY = 5 * MIN;   // 그래프용 1분 간격 기록은 이 간격으로만 다시 받는다
 
 function add(lines) {
   for (const o of lines) { const m = store[o.source]; if (m) m.set(o.observedAt, o); }
@@ -25,7 +27,7 @@ async function getJSON(url) {
 async function api(path) {
   const j = await getJSON(API_BASE + path);
   sample = !!j.sample;
-  if (typeof j.refreshSec === "number" && j.refreshSec >= 60) serverRefreshSec = j.refreshSec;
+  if (typeof j.refreshSec === "number" && j.refreshSec >= 20) serverRefreshSec = j.refreshSec;
   add(j.lines);
   return j;
 }
@@ -48,10 +50,13 @@ export async function loadRemote() {
     const j = await api("/init");
     allDays = j.days || [];
     await loadDays(allDays);
-    loaded = true;
-  } else {
+    loaded = true; lastFull = Date.now();
+  } else if (Date.now() - lastFull >= FULL_EVERY) {
     await api("/latest");
+    lastFull = Date.now();
     if (loadedDays.size < allDays.length) await loadDays(allDays);   // 전에 실패한 날짜 다시 시도
+  } else {
+    await api("/now");
   }
   lastOk = Date.now();
   const obs = {};
