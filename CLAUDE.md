@@ -138,7 +138,8 @@
 - 자동 시험 `tests/`(Node 기본 시험 도구, 설치 없음): 점수·순위(투표만/음원 포함), 시각 기준과 00시 마감, 빈 구간,
   합산 보류, 빠진 팀, 점수 차 표시, Worker 보조 수집 중복 제외·베리즈 중복 제외·비밀값 확인·갱신 간격 계산(가짜 D1).
   `npm test`. `npm run deploy`는 시험이 통과해야 배포한다. GitHub에 올리면 `.github/workflows/test.yml`도 돈다.
-  Claude 앱 PowerShell에서는 `node --test tests/` 후 `node node_modules/wrangler/bin/wrangler.js deploy`.
+  Claude 앱 PowerShell에서는 `node --test "tests/*.test.js"` 후 `node node_modules/wrangler/bin/wrangler.js deploy`.
+  (Node 22는 `node --test tests/`처럼 폴더를 주면 실패한다. 파일 패턴으로 준다)
 
 ## 비밀값 (파일에 적지 않음)
 
