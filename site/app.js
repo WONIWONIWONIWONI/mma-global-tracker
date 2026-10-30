@@ -149,26 +149,29 @@ function drawGlobal() {
   let cards = "", table = "";
   if (R) {
     const pin = R.find(r => r.k === G.pin);
+    // 휴대폰 반 칸에는 짧은 문장(이름 빼고 한 줄), 넓은 화면은 이름까지 넣은 문장
+    const pinShort = pin.rank == null ? "음원 점수 미확인" : pin.rank <= CUT ? `11위와 ${f2(pin.total - R[CUT].total)}점 차` : `10위와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
+    const note2 = (full, short) => `<span class="s"><span class="lgt">${full}</span><span class="sht">${short}</span></span>`;
     const pinNote = pin.rank == null ? "음원 점수 미확인 · 합산 순위 없음" : pin.rank <= CUT
       ? (pin.rank === 1 ? "선두" : `${pin.rank - 1}위와 ${f2(R[pin.rank - 2].total - pin.total)}점 차`) + ` · 11위와 ${f2(pin.total - R[CUT].total)}점 차`
       : `10위 ${esc(R[CUT - 1].name)}와 ${f2(R[CUT - 1].total - pin.total)}점 차`;
     const opts = CANDS.map(c => `<option value="${c.k}"${c.k === G.pin ? " selected" : ""}>${esc(c.name)}</option>`).join("");
     // 음원 점수를 빼고 투표 점수만 합산하는 동안은 카드 위에 기준을 크게 적는다(캡처로 퍼질 때 오해 방지)
     // 계산 방식 고르기: 두 방식을 같은 무게로 나란히 둔 카드(누르면 바뀜). 각 카드에 한 줄 계산식.
-    const mopt = (k, name, sub, desc) => `<button type="button" class="mopt" role="radio" aria-checked="${G.method === k}" data-g="method" data-v="${k}">
-        <span class="mh"><i class="dot" aria-hidden="true"></i><b>${name}</b><span>${sub}</span></span><span class="md">${desc}</span></button>`;
-    const methods = `<div class="methods" role="radiogroup" aria-label="투표 점수 계산 방식">
-      ${mopt("1", "방식 1", "사이트 1위 기준", `사이트마다 1위 득표수 = ${RULES.siteMax}점, 두 사이트 점수를 1:1로 더함`)}
-      ${mopt("2", "방식 2", "득표율 기준", `베리즈 표 ×${rx || "배수"} + 멜론 표, 이 합계 1위 = ${2 * RULES.siteMax}점`)}
+    // 계산 방식 고르기: 두 방식을 같은 무게의 탭으로 나란히(고른 쪽은 이름 아래 강조선), 아래에 고른 방식의 계산식 한 줄
+    const MDESC = { "1": `사이트마다 1위 득표수 = ${RULES.siteMax}점, 두 사이트 점수를 1:1로 더함`, "2": `베리즈 표 ×${rx || "배수"} + 멜론 표, 이 합계 1위 = ${2 * RULES.siteMax}점` };
+    const mopt = (k, name, sub) => `<button type="button" class="mopt" role="radio" aria-checked="${G.method === k}" data-g="method" data-v="${k}"><b>${name}</b><span>${sub}</span></button>`;
+    const methods = `<div class="methods"><div class="mtabs" role="radiogroup" aria-label="투표 점수 계산 방식">${mopt("1", "방식 1", "사이트 1위 기준")}${mopt("2", "방식 2", "득표율 기준")}</div>
+      <p class="mform"><b>방식 ${G.method}</b> ${MDESC[G.method]}</p>
       <p class="mnote">공지의 "각 투표 결과를 1:1로 합산"은 두 가지로 읽을 수 있어 두 방식을 함께 보여 줍니다. 배수 ${rx ? "×" + rx + "는" : "는"} 멜론 전체 표 ÷ 베리즈 전체 표로, 득표 총수에 따라 바뀝니다.</p>
     </div>`;
     const basis = (RULES.useChart ? "" : `<p class="basis"><b>투표 점수 기준</b> 멜론 ${RULES.siteMax} + 베리즈 ${RULES.siteMax} = ${MAXT}점 만점 · 음원 ${RULES.chartMax}점·심사 ${RULES.judgeScore}점 미반영으로 최종 순위와 다를 수 있음</p>`) + methods;
     cards = `${basis}<div class="cards">
-      <div class="card first"><span class="k">1위 (${M2 ? "방식 2" : "방식 1"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span><span class="s">2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬</span></div>
       <div class="card cut"><span class="k">TOP10 컷${RULES.useChart ? "" : " (투표 점수)"}</span>
         <span class="cutpair"><span><i>10위</i><b>${esc(R[CUT - 1].name)}</b><em>${f2(R[CUT - 1].total)}</em></span><span><i>11위</i><b>${esc(R[CUT].name)}</b><em>${f2(R[CUT].total)}</em></span></span>
         <span class="v">${fgap(R[CUT - 1].total - R[CUT].total)}<small>점 차</small></span></div>
-      <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span><span class="s">${pinNote}</span>
+      <div class="card first"><span class="k">1위 (${M2 ? "방식 2" : "방식 1"})</span><span class="n">${esc(R[0].name)}</span><span class="v">${f2(R[0].total)}<small>/ ${MAXT}</small></span>${note2(`2위 ${esc(R[1].name)}보다 ${fgap(R[0].total - R[1].total)}점 앞섬`, `2위와 ${fgap(R[0].total - R[1].total)}점 차`)}</div>
+      <div class="card"><span class="k">관심 후보</span><span class="n">${esc(pin.name)}${pin.rank != null ? " · " + pin.rank + "위" : ""}</span><span class="v">${f2(pin.total)}<small>/ ${MAXT}</small></span>${note2(pinNote, pinShort)}
         <select id="pinSel" aria-label="관심 후보 선택">${opts}</select></div>
     </div>`;
 
@@ -212,8 +215,8 @@ function drawGlobal() {
         <div class="more"><div>멜론 ${votes(r.mv)} · 베리즈 ${votes(r.bv)}${M2 && r.sum != null ? ` · 환산 합계 ${fmt(Math.round(r.sum))}표` : ""}</div>
           ${r.gapAhead != null ? `<div>앞 순위를 넘으려면 · ${needM(r)}</div>` : ""}</div></details></li>`;
       if (r.rank === CUT) {
-        rows += `<tr class="cut" aria-hidden="true"><td colspan="${NC}"><span>TOP 10</span></td></tr>`;
-        mrows += `<li class="cut" aria-hidden="true"><span>TOP 10</span></li>`;
+        rows += `<tr class="cut" aria-hidden="true"><td colspan="${NC}"><span>TOP10</span></td></tr>`;
+        mrows += `<li class="cut" aria-hidden="true"><span>TOP10</span></li>`;
       }
     });
     table = `<div class="tscroll rank-wide"><table class="rank">
