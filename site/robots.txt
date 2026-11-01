@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://mma-global-tracker.happyapple.workers.dev/sitemap.xml
