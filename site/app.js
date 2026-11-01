@@ -6,6 +6,7 @@ import { drawLine, drawCandles } from "./charts.js";
 import { openShare, rankImage, rankHTML, siteImage, siteHTML, chartImage } from "./share.js";
 import { MAINTENANCE } from "./core/config.js";
 import { combinedStandings } from "./core/scoring.js";
+import { patchHTML } from "./patch.js";
 
 const $ = s => document.querySelector(s);
 // 차트 선 색은 테마(일반/다크)마다 style.css 의 --c1~--c8 에서 정한다
@@ -33,7 +34,7 @@ async function refresh() {
     const late = !USE_MOCK && remote.takeLateBuild();
     if (late) late.then(p => { if (p) applyLate(p); }).catch(e => console.warn(e));
   }
-  catch (e) { loadError = e; console.error(e); if (!P) $("#view-" + VIEW).innerHTML = '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'; }
+  catch (e) { loadError = e; console.error(e); if (!P) patchHTML($("#view-" + VIEW), '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'); }
   finally {
     loading = false;
     // 서버가 정한 간격을 따르고, 여러 화면이 같은 순간에 몰리지 않게 간격의 1/4(최대 10초)까지 무작위로 더한다
@@ -254,7 +255,7 @@ function drawGlobal() {
   } else table = `<p class="hold">${hold}</p>`;
 
   const snapOpts = snapOptions(snaps);
-  v.innerHTML = `${cards}
+  patchHTML(v, `${cards}
   <div class="panel">
     <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
       <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
@@ -274,7 +275,7 @@ function drawGlobal() {
       </div></div>
     <div class="chart" id="g-chart"></div>
     <div class="chips${G.trend === "total" ? "" : " off"}"${G.trend === "total" ? "" : ' aria-hidden="true"'}>${chipsHTML(R ? R.map(r => r.k) : CANDS.map(c => c.k), G.sel, "gsel")}</div>
-  </div>`;
+  </div>`);
 
   drawTrend();
 }
@@ -327,7 +328,7 @@ function siteData(key) {
 function renderSite(key) { holdScroll($("#view-" + key), () => drawSite(key)); }
 function drawSite(key) {
   const S = ST[key], v = $("#view-" + key), D0 = siteData(key);
-  if (!D0) { v.innerHTML = `<div class="panel"><p class="empty">${P.sites[key].name} 관측이 아직 없습니다.</p></div>`; return; }
+  if (!D0) { patchHTML(v, `<div class="panel"><p class="empty">${P.sites[key].name} 관측이 아직 없습니다.</p></div>`); return; }
   const { s, ser, L, now, start, vals, total, order, back, h1, m1, diff, share } = D0;
   if (!S.sel) S.sel = new Set([order[0], order[1], G.pin]);
   if (S.a == null) { S.a = order[0]; S.b = order[1]; }
@@ -382,7 +383,7 @@ function drawSite(key) {
   const gNow = vals[S.a] - vals[S.b];
   const gStat = m => { const r = back(m * MIN); if (!r || r[S.a] == null || r[S.b] == null) return "—"; const x = gNow - (r[S.a] - r[S.b]); return `<span class="${x > 0 ? "up" : x < 0 ? "down" : ""}">${signed(x)}</span>`; };
 
-  v.innerHTML = `
+  patchHTML(v, `
   <div class="duel">${card(top, 1)}
     <div class="card gap"><span class="k">1·2위 표차</span><span class="v num" style="font-family:var(--f-disp)">${fmt(gap)}</span><span class="s">1시간 전보다 <span class="${gapH > 0 ? "up" : gapH < 0 ? "down" : ""}">${signed(gapH)}</span>${gapH > 0 ? " 벌어짐" : gapH < 0 ? " 좁혀짐" : ""}</span></div>
     ${card(sec, 2)}</div>
@@ -424,7 +425,7 @@ function drawSite(key) {
   <div class="panel">
     <div class="phead"><div><h2>날짜별 마감 기록</h2><p>${colsNote} · 각 날짜 00시부터 다음 날 00시까지의 증가량</p></div></div>
     <table class="heat fit day"><thead><tr><th>날짜</th>${cols.map(k => `<th>${nameOf(k)}</th>`).join("")}<th>전체</th></tr></thead><tbody>${dayTable}</tbody></table>
-  </div>`;
+  </div>`);
 
   /* 추이 차트: 6시간은 1분, 24시간은 5분, 전체는 15분 간격 점 */
   const span = { "6h": 6 * HOUR, "24h": DAY, all: Infinity }[S.range], stp = { "6h": MIN, "24h": 5 * MIN, all: 15 * MIN }[S.range];
@@ -533,15 +534,15 @@ function renderStatus() {
     ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${P.live.skewMs < 120e3 ? Math.round(P.live.skewMs / 1000) + "초" : Math.round(P.live.skewMs / MIN) + "분"}</b></span>` : ""}
     ${paused
       ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
-      : '<span>다음 갱신 <b class="num cd" id="cd"></b></span>'}
+      : '<span>다음 갱신 <b class="num cd" id="cd" translate="no"></b>초</span>'}
     ${voteStatus(now)}
     ${refreshMs > REFRESH_MS ? `<span class="warn">접속이 많아 ${refreshMs % 60e3 ? refreshMs / 1000 + "초" : refreshMs / 60e3 + "분"} 간격으로 갱신 중</span>` : ""}
     ${loadError ? '<span class="warn">최근 갱신 실패 · 이전 값 표시 중</span>' : ""}
     ${[m, b].filter(s => s.missing && s.missing.length).map(s => `<span class="warn" title="${esc(s.missing.join(", "))}">${s.name} ${s.missing.length}팀 값 없음(사이트 표기 변경 확인 중)</span>`).join("")}
     ${P.sample ? '<span class="sample">예시 데이터 · 투표 주소 공개 전 화면</span>' : ""}`;
-  if (html !== statusHTML) { el.innerHTML = html; statusHTML = html; }
+  if (html !== statusHTML) { patchHTML(el, html); statusHTML = html; }
   const cd = el.querySelector("#cd");
-  if (cd) cd.textContent = Math.max(0, Math.ceil((nextFetch - now) / 1000)) + "초";
+  if (cd) { const t = String(Math.max(0, Math.ceil((nextFetch - now) / 1000))); if (cd.textContent !== t) cd.textContent = t; }
 }
 function render() { if (P) { if (VIEW === "global") renderGlobal(); else renderSite(VIEW); } }
 function show(view) {
