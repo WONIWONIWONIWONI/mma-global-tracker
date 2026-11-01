@@ -27,7 +27,12 @@ async function fetchPayload() {
 async function refresh() {
   if (loading) return;
   loading = true;
-  try { apply(await fetchPayload()); loadError = null; }
+  try {
+    apply(await fetchPayload()); loadError = null;
+    // 첫 화면 뒤 지난 날짜까지 받으면 다시 계산해 그린다(점수 추이 "전체"·마감 기록)
+    const late = !USE_MOCK && remote.takeLateBuild();
+    if (late) late.then(p => { if (p) applyLate(p); }).catch(e => console.warn(e));
+  }
   catch (e) { loadError = e; console.error(e); if (!P) $("#view-" + VIEW).innerHTML = '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'; }
   finally {
     loading = false;
@@ -53,6 +58,16 @@ function apply(p) {
   K = Object.fromEntries(CANDS.map(c => [c.id, c.k]));
   if (first) G.pin = K[p.config.pinDefault] ?? 0;
   render();
+}
+
+// 지난 날짜가 늦게 도착했을 때: 글로벌 화면은 그것이 바꾸는 곳(점수 추이, 날짜 선택)만 다시 그린다.
+// 화면 전체를 다시 그리면 첫 화면의 큰 글자가 새로 그려져 "첫 화면 표시 시간"이 늦게 잡힌다.
+function applyLate(p) {
+  const chart = $("#g-chart"), sel = $("#snapSel");
+  if (VIEW !== "global" || !P || !chart || !sel || G.snap !== "live") return apply(p);
+  P = p;
+  sel.innerHTML = '<option value="live">실시간</option>' + snapOptions(P.snapshots.map(s => s.at));
+  drawTrend();
 }
 
 // 시계열에서 ts 시점에 알고 있던 값의 위치(없으면 -1)
@@ -139,7 +154,16 @@ function holdScroll(v, draw) {
     if (el) { const d = el.getBoundingClientRect().top - a.top; if (Math.abs(d) > 1) scrollBy(0, d); }
   }
 }
-function renderGlobal() { holdScroll($("#view-global"), drawGlobal); }
+function renderGlobal() { holdScroll($("#view-global"), drawGlobal); saveView(); }
+// 다음 방문 때 바로 보여 줄 글로벌 화면을 저장한다(index.html 이 꺼내 흐리게 보여 줌). 30초에 한 번까지만
+let savedAt = 0;
+function saveView() {
+  const v = $("#view-global");
+  v.classList.remove("cached"); delete v.dataset.cachedAt;
+  if (!P || !P.live || Date.now() - savedAt < 30e3) return;
+  savedAt = Date.now();
+  try { localStorage.setItem("mma-view-v1", JSON.stringify({ at: savedAt, html: v.innerHTML })); } catch (e) {}
+}
 function drawGlobal() {
   const v = $("#view-global"), CUT = RULES.cutoff, MAXT = RULES.provisionalMax, M2 = G.method === "2";
   const { snaps, R, prevRanks, cmp, when, hold, ratio } = globalData();
@@ -229,7 +253,7 @@ function drawGlobal() {
         : `<span><i style="background:var(--melon)"></i>멜론 투표 ${RULES.siteMax}점</span><span><i style="background:var(--berriz)"></i>베리즈 투표 ${RULES.siteMax}점</span>`}</div>`;
   } else table = `<p class="hold">${hold}</p>`;
 
-  const snapOpts = snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("");
+  const snapOpts = snapOptions(snaps);
   v.innerHTML = `${cards}
   <div class="panel">
     <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
@@ -252,6 +276,12 @@ function drawGlobal() {
     <div class="chips${G.trend === "total" ? "" : " off"}"${G.trend === "total" ? "" : ' aria-hidden="true"'}>${chipsHTML(R ? R.map(r => r.k) : CANDS.map(c => c.k), G.sel, "gsel")}</div>
   </div>`;
 
+  drawTrend();
+}
+const snapOptions = snaps => snaps.slice().reverse().map(d => `<option value="${d}"${G.snap === d ? " selected" : ""}>${mdK(d - 1)} 마감 (${md(d)} 00시)</option>`).join("");
+// 점수 추이 그래프(방식·보기·기간 선택을 따름)
+function drawTrend() {
+  const M2 = G.method === "2";
   const T = M2 && P.trend2 ? P.trend2 : P.trend, lastT = T.t[T.t.length - 1], from = G.range === "24h" ? lastT - DAY : -Infinity;
   const keep = T.t.map((t, i) => t >= from ? i : -1).filter(i => i >= 0);
   let series;
@@ -487,7 +517,11 @@ function voteStatus(now) {
 let statusHTML = "";
 function renderStatus() {
   const el = $("#status");
-  if (!P) { el.textContent = loadError ? "데이터를 불러오지 못했습니다" : "불러오는 중…"; return; }
+  if (!P) {
+    const c = +($("#view-global").dataset.cachedAt || 0);
+    el.textContent = loadError ? "데이터를 불러오지 못했습니다" : c ? `${hm(c)}에 본 화면 · 최신 값을 불러오는 중…` : "불러오는 중…";
+    return;
+  }
   const now = Date.now(), m = P.sites.melon, b = P.sites.berriz;
   const closed = k => CLOSED_SITES.includes(k);
   const site = (s, k) => closed(k) ? "<b>점검 중</b>" : s.latest

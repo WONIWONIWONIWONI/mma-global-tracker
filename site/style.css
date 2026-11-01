@@ -90,6 +90,8 @@ button,select{font:inherit;color:inherit}
 main{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
 .view{display:flex;flex-direction:column;gap:16px}
 .view[hidden]{display:none}
+/* 다시 온 방문자에게 먼저 보여 주는 마지막 화면: 흐리게, 최신 값이 오기 전에는 누를 수 없음 */
+.view.cached{opacity:.55;pointer-events:none}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;min-width:0;box-shadow:var(--shadow)}
 .phead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;margin-bottom:12px}
 .phead h2{margin:0;font-size:16px;font-weight:600;text-wrap:balance}

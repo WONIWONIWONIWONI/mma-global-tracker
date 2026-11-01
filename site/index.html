@@ -29,11 +29,35 @@
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://mma-global-tracker.happyapple.workers.dev/og.png">
+<script>
+  // 데이터는 화면 코드를 받는 동안 미리 요청한다(스타일 파일보다 앞에 둬야 기다리지 않고 바로 보냄)(remote.js 가 이어받아 같은 요청을 두 번 보내지 않음).
+  // 가짜 데이터 미리보기(포트 8000, ?mock)에서는 보내지 않는다(settings.js USE_MOCK 과 같은 조건)
+  if (!new URLSearchParams(location.search).has("mock") && location.port !== "8000") {
+    try {
+      window.__init = fetch("/api/init").then(r => { if (!r.ok) throw new Error("/api/init 응답 " + r.status); return r.json(); });
+      window.__init.catch(() => {});
+    } catch (e) {}
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<!-- 글꼴은 화면을 막지 않게 따로 받는다. display=optional: 금방 오면 쓰고, 늦으면 이번에는 기본 글꼴 그대로(글자가 바뀌며 화면이 밀리지 않게). 받아 둔 글꼴은 다음 방문부터 바로 쓰임 -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=optional"></noscript>
 <link rel="stylesheet" href="style.css">
 <script>try { const t = localStorage.getItem("mma-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<!-- 화면 코드 파일을 한꺼번에 받는다(app.js 가 부르는 파일 전부. 파일을 더하면 여기도 더함) -->
+<link rel="modulepreload" href="app.js">
+<link rel="modulepreload" href="settings.js">
+<link rel="modulepreload" href="remote.js">
+<link rel="modulepreload" href="format.js">
+<link rel="modulepreload" href="charts.js">
+<link rel="modulepreload" href="share.js">
+<link rel="modulepreload" href="core/config.js">
+<link rel="modulepreload" href="core/scoring.js">
+<link rel="modulepreload" href="core/api.js">
+<link rel="modulepreload" href="core/history.js">
+<link rel="modulepreload" href="core/time.js">
 <!-- Cloudflare Web Analytics(무료, 쿠키 없음). 방문 기록은 Cloudflare로 바로 가서 Worker 요청 한도를 쓰지 않는다. 토큰은 공개용 값. -->
 <script>
   // 실제 사이트 주소에서만 불러온다(내 컴퓨터 시험 방문이 통계에 섞이지 않게)
@@ -72,6 +96,17 @@
 <button type="button" id="toTop" class="to-top" aria-label="맨 위로" title="맨 위로" hidden>
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button>
+<script>
+  // 다시 온 방문자: 마지막으로 본 글로벌 화면(6시간 이내)을 흐리게 바로 보여 주고, app.js 가 최신 값으로 바꾼다.
+  // 저장은 app.js saveView. 키 이름(mma-view-v1)을 바꾸면 예전 저장본은 쓰지 않는다(화면 구조를 크게 바꿀 때)
+  try {
+    const h = location.hash, c = JSON.parse(localStorage.getItem("mma-view-v1") || "null");
+    if (c && c.html && (!h || h === "#global") && Date.now() - c.at < 6 * 3600e3) {
+      const v = document.getElementById("view-global");
+      v.innerHTML = c.html; v.classList.add("cached"); v.dataset.cachedAt = c.at;
+    }
+  } catch (e) {}
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

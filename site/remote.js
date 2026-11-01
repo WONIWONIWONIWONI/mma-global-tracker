@@ -24,32 +24,55 @@ async function getJSON(url) {
   if (!r.ok) throw new Error(url + " 응답 " + r.status);
   return r.json();
 }
-async function api(path) {
-  const j = await getJSON(API_BASE + path);
+function take(j) {
   sample = !!j.sample;
   if (typeof j.refreshSec === "number" && j.refreshSec >= 20) serverRefreshSec = j.refreshSec;
   add(j.lines);
   return j;
 }
+const api = async path => take(await getJSON(API_BASE + path));
 
 // 지난 날짜들을 4개씩 나눠 받는다. 한 날짜가 실패해도 나머지는 보여 주고, 다음 갱신 때 다시 시도한다.
-async function loadDays(days) {
+// 이미 받는 중이면 그 작업을 같이 기다린다(같은 파일을 두 번 받지 않게).
+let daysBusy = null;
+function loadDays(days) {
+  if (daysBusy) return daysBusy;
   const todo = days.filter(d => !loadedDays.has(d));
-  for (let i = 0; i < todo.length; i += 4) {
-    await Promise.all(todo.slice(i, i + 4).map(async d => {
-      try { add((await getJSON(`/history/${d}.json`)).lines); loadedDays.add(d); }
-      catch (e) { console.warn("지난 날짜를 못 받음", d, e.message); }
-    }));
-  }
+  if (!todo.length) return Promise.resolve();
+  daysBusy = (async () => {
+    for (let i = 0; i < todo.length; i += 4) {
+      await Promise.all(todo.slice(i, i + 4).map(async d => {
+        try { add((await getJSON(`/history/${d}.json`)).lines); loadedDays.add(d); }
+        catch (e) { console.warn("지난 날짜를 못 받음", d, e.message); }
+      }));
+    }
+  })().finally(() => { daysBusy = null; });
+  return daysBusy;
 }
+
+function build() {
+  const obs = {};
+  for (const [k, m] of Object.entries(store)) obs[k] = [...m.values()].sort((a, b) => a.observedAt - b.observedAt);
+  return buildPayload(obs, Date.now(), { sample });
+}
+
+// 첫 화면은 오늘 데이터만으로 먼저 그리고, 지난 날짜(점수 추이 "전체"·마감 기록용)는 뒤에서 받는다.
+// 다 받으면 다시 계산한 결과를 주는 약속을 한 번만 내준다(app.js 가 받아서 다시 그림).
+let lateBuild = null;
+export function takeLateBuild() { const p = lateBuild; lateBuild = null; return p; }
 
 export async function loadRemote() {
   // 오래 자리를 비웠다 돌아왔을 때만 처음처럼 받는다(기준은 데이터 시각이 아니라 마지막으로 받은 시각:
   // 수집이 멈춘 동안 모든 화면이 매분 전체를 다시 받는 일이 없게)
   if (!loaded || Date.now() - lastOk > 100 * MIN) {
-    const j = await api("/init");
+    // index.html 이 화면 코드를 받는 동안 미리 보낸 /api/init 요청이 있으면 이어받는다(처음 한 번만)
+    const pre = !loaded && globalThis.__init;
+    globalThis.__init = null;
+    let j = null;
+    if (pre) { try { j = take(await pre); } catch (e) { j = null; } }
+    if (!j) j = await api("/init");
     allDays = j.days || [];
-    await loadDays(allDays);
+    if (allDays.some(d => !loadedDays.has(d))) lateBuild = loadDays(allDays).then(build);
     loaded = true; lastFull = Date.now();
   } else if (Date.now() - lastFull >= FULL_EVERY) {
     await api("/latest");
@@ -59,7 +82,5 @@ export async function loadRemote() {
     await api("/now");
   }
   lastOk = Date.now();
-  const obs = {};
-  for (const [k, m] of Object.entries(store)) obs[k] = [...m.values()].sort((a, b) => a.observedAt - b.observedAt);
-  return buildPayload(obs, Date.now(), { sample });
+  return build();
 }
