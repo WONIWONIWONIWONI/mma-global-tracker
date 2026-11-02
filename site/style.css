@@ -350,3 +350,8 @@ details[open] summary{margin-bottom:6px}
 .warn{color:var(--up);font-weight:600}
 .live.off i{background:var(--up);animation:none}
 .hold{margin:0;padding:14px 16px;border:1px dashed var(--berriz);border-radius:8px;background:var(--sunk)}
+
+/* 맨 아래 사이트 소개(검색 엔진이 읽는 설명 글) */
+.about{margin:28px 0 8px;padding:16px 2px 0;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.7}
+.about h2{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.about p{margin:0;max-width:72ch}
