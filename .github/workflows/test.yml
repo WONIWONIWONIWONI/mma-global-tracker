@@ -4,7 +4,7 @@ name: Tests
 
 on:
   push:
-    paths: ["site/**", "worker/**", "tests/**", "package.json"]
+    paths: ["site/**", "tests/**", "package.json"]
   workflow_dispatch:
 
 permissions:

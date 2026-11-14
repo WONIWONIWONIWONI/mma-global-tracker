@@ -1,86 +1,38 @@
-// 실제 API에서 관측을 받아 모아 두고, 점수 계산(core/api.js)을 브라우저에서 한 번 돌린다.
-// Worker는 무료 플랜 CPU 한도(요청당 10ms) 때문에 계산하지 않고 미리 쌓아 둔 관측 조각만 내려준다.
-//   /api/init             처음 한 번(또는 오래 자리를 비웠다 돌아왔을 때): 오늘 5분 간격 + 최근 7시간 1분 간격 + 지난 날짜 목록
-//   /history/날짜.json    지난 날짜 하나의 5분 간격(보통 정적 파일이라 무료·무제한, 브라우저가 하루 동안 기억)
-//   /api/latest           5분마다: 최근 2시간의 1분 간격(그래프·기록용)
-//   /api/now              그 사이 갱신마다: 사이트별 최신 관측 한 줄씩(아주 작음, 멜론 20초 수집 값)
-// 응답의 refreshSec 은 서버가 남은 요청 한도를 보고 정한 갱신 간격이다(20초~10분).
-import { API_BASE } from "./settings.js";
+// 투표가 끝나 수집을 멈췄다. 화면은 투표 기간의 날짜별 기록 파일(/history/날짜.json, 정적 파일)만 읽는다.
+// 첫 화면은 마지막 날 파일만으로 최종 순위를 먼저 그리고, 나머지 날짜는 뒤에서 받아 추이·마감 기록을 채운다.
 import { buildPayload } from "./core/api.js";
-import { MIN } from "./core/time.js";
+import { VOTE } from "./core/config.js";
+import { DAY, KST_OFFSET, kstMidnight } from "./core/time.js";
+
+// 최종 결과 기준 시각: 마감(11/14 00:00) 바로 전. "변동"은 마지막 날 00시(11/13 00:00)와 비교된다
+export const FINAL_AT = Date.parse(VOTE.end) - 1;
+const END = Date.parse(VOTE.end);
+export const DAYS = [];
+for (let d = kstMidnight(Date.parse(VOTE.start)); d < END; d += DAY) DAYS.push(new Date(d + KST_OFFSET).toISOString().slice(0, 10));
 
 const store = { melon: new Map(), berriz: new Map() };
 const loadedDays = new Set();
-let allDays = [];
-let loaded = false, sample = false, lastOk = 0, lastFull = 0;
-export let serverRefreshSec = 60;
-const FULL_EVERY = 5 * MIN;   // 그래프용 1분 간격 기록은 이 간격으로만 다시 받는다
 
-function add(lines) {
-  for (const o of lines) { const m = store[o.source]; if (m) m.set(o.observedAt, o); }
-}
-async function getJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(url + " 응답 " + r.status);
-  return r.json();
-}
-function take(j) {
-  sample = !!j.sample;
-  if (typeof j.refreshSec === "number" && j.refreshSec >= 20) serverRefreshSec = j.refreshSec;
-  add(j.lines);
-  return j;
-}
-const api = async path => take(await getJSON(API_BASE + path));
-
-// 지난 날짜들을 4개씩 나눠 받는다. 한 날짜가 실패해도 나머지는 보여 주고, 다음 갱신 때 다시 시도한다.
-// 이미 받는 중이면 그 작업을 같이 기다린다(같은 파일을 두 번 받지 않게).
-let daysBusy = null;
-function loadDays(days) {
-  if (daysBusy) return daysBusy;
-  const todo = days.filter(d => !loadedDays.has(d));
-  if (!todo.length) return Promise.resolve();
-  daysBusy = (async () => {
-    for (let i = 0; i < todo.length; i += 4) {
-      await Promise.all(todo.slice(i, i + 4).map(async d => {
-        try { add((await getJSON(`/history/${d}.json`)).lines); loadedDays.add(d); }
-        catch (e) { console.warn("지난 날짜를 못 받음", d, e.message); }
-      }));
-    }
-  })().finally(() => { daysBusy = null; });
-  return daysBusy;
+async function loadDay(d) {
+  const r = await fetch(`/history/${d}.json`);
+  if (!r.ok) throw new Error(`/history/${d}.json 응답 ${r.status}`);
+  // 마감 뒤 관측은 쓰지 않는다(마감 분 00:00 값까지)
+  for (const o of (await r.json()).lines) if (store[o.source] && o.observedAt < END + 60e3) store[o.source].set(o.observedAt, o);
+  loadedDays.add(d);
 }
 
 function build() {
   const obs = {};
   for (const [k, m] of Object.entries(store)) obs[k] = [...m.values()].sort((a, b) => a.observedAt - b.observedAt);
-  return buildPayload(obs, Date.now(), { sample });
+  return buildPayload(obs, FINAL_AT, { final: true });
 }
 
-// 첫 화면은 오늘 데이터만으로 먼저 그리고, 지난 날짜(점수 추이 "전체"·마감 기록용)는 뒤에서 받는다.
-// 다 받으면 다시 계산한 결과를 주는 약속을 한 번만 내준다(app.js 가 받아서 다시 그림).
 let lateBuild = null;
 export function takeLateBuild() { const p = lateBuild; lateBuild = null; return p; }
 
 export async function loadRemote() {
-  // 오래 자리를 비웠다 돌아왔을 때만 처음처럼 받는다(기준은 데이터 시각이 아니라 마지막으로 받은 시각:
-  // 수집이 멈춘 동안 모든 화면이 매분 전체를 다시 받는 일이 없게)
-  if (!loaded || Date.now() - lastOk > 100 * MIN) {
-    // index.html 이 화면 코드를 받는 동안 미리 보낸 /api/init 요청이 있으면 이어받는다(처음 한 번만)
-    const pre = !loaded && globalThis.__init;
-    globalThis.__init = null;
-    let j = null;
-    if (pre) { try { j = take(await pre); } catch (e) { j = null; } }
-    if (!j) j = await api("/init");
-    allDays = j.days || [];
-    if (allDays.some(d => !loadedDays.has(d))) lateBuild = loadDays(allDays).then(build);
-    loaded = true; lastFull = Date.now();
-  } else if (Date.now() - lastFull >= FULL_EVERY) {
-    await api("/latest");
-    lastFull = Date.now();
-    if (loadedDays.size < allDays.length) await loadDays(allDays);   // 전에 실패한 날짜 다시 시도
-  } else {
-    await api("/now");
-  }
-  lastOk = Date.now();
+  await loadDay(DAYS[DAYS.length - 1]);
+  const rest = DAYS.filter(d => !loadedDays.has(d));
+  if (rest.length) lateBuild = Promise.all(rest.map(d => loadDay(d).catch(e => console.warn("지난 날짜를 못 받음", d, e.message)))).then(build);
   return build();
 }

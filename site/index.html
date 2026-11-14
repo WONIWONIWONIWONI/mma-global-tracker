@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>MMA 2026 글로벌 TOP10 투표 트래커 · 멜론뮤직어워드 실시간 순위</title>
-<meta name="description" content="MMA 2026(멜론뮤직어워드) 글로벌 TOP10 투표 비공식 실시간 트래커. 멜론·베리즈 MMA 투표 득표수와 순위, 음원+투표 합산 잠정 순위, TOP10 컷 점수차, 표차 분석을 20초마다 갱신. Melon Music Awards 2026 Global TOP10 vote tracker.">
-<meta name="keywords" content="MMA, MMA 2026, MMA2026, MMA 글로벌, MMA 글로벌 TOP10, MMA 트래커, MMA 투표, MMA 투표 순위, MMA 실시간, 멜론뮤직어워드, 멜론뮤직어워드 2026, 멜론 투표, 베리즈 투표, 글로벌 TOP10, 투표 트래커, Melon Music Awards, MMA vote tracker">
+<title>MMA 2026 글로벌 TOP10 투표 최종 결과 · 멜론뮤직어워드 트래커</title>
+<meta name="description" content="MMA 2026(멜론뮤직어워드) 글로벌 TOP10 투표 최종 결과(비공식). 멜론·베리즈 MMA 투표 최종 득표수와 순위, 음원+투표 합산 잠정 순위, TOP10 컷 점수차, 투표 기간 득표 추이. Melon Music Awards 2026 Global TOP10 vote final results.">
+<meta name="keywords" content="MMA, MMA 2026, MMA 2026 결과, MMA 글로벌 TOP10 결과, MMA 투표 결과, MMA2026, MMA 글로벌, MMA 글로벌 TOP10, MMA 트래커, MMA 투표, MMA 투표 순위, MMA 실시간, 멜론뮤직어워드, 멜론뮤직어워드 2026, 멜론 투표, 베리즈 투표, 글로벌 TOP10, 투표 트래커, Melon Music Awards, MMA vote tracker">
 <!-- 구글 서치 콘솔 소유 확인(지우면 확인이 풀림). 검색 결과에 보일 대표 주소 -->
 <meta name="google-site-verification" content="E83MTfZ8Qi1DqO9Y3C4wb6rw7QpchasTLNe4j1eMyyk" />
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"MMA 글로벌 TOP10 트래커",
  "alternateName":["MMA 트래커","MMA 2026 글로벌 TOP10 투표 트래커","MMA Global TOP10 Tracker"],
  "url":"https://mma-global-tracker.happyapple.workers.dev/","inLanguage":"ko",
- "description":"MMA 2026(멜론뮤직어워드) 글로벌 TOP10 멜론·베리즈 투표 비공식 실시간 트래커"}
+ "description":"MMA 2026(멜론뮤직어워드) 글로벌 TOP10 멜론·베리즈 투표 최종 결과(비공식)"}
 </script>
 <link rel="canonical" href="https://mma-global-tracker.happyapple.workers.dev/">
 <!-- 아이콘: 정적 파일이라 브라우저가 찾아도 Worker 요청 한도를 쓰지 않는다 -->
@@ -30,8 +30,8 @@
 <!-- 링크 미리보기(카카오톡·커뮤니티·X) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MMA 글로벌 TOP10 트래커">
-<meta property="og:title" content="MMA 2026 글로벌 TOP10 실시간 트래커">
-<meta property="og:description" content="멜론·베리즈 투표 잠정 순위, TOP10 컷 점수차, 표차 분석 (비공식, 멜론 20초·베리즈 10분 간격 수집)">
+<meta property="og:title" content="MMA 2026 글로벌 TOP10 투표 최종 결과">
+<meta property="og:description" content="멜론·베리즈 투표 최종 득표와 잠정 순위, TOP10 컷 점수차, 투표 기간 득표 추이 (비공식)">
 <meta property="og:url" content="https://mma-global-tracker.happyapple.workers.dev/">
 <meta property="og:image" content="https://mma-global-tracker.happyapple.workers.dev/og.png">
 <meta property="og:image:width" content="1200">
@@ -39,16 +39,6 @@
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://mma-global-tracker.happyapple.workers.dev/og.png">
-<script>
-  // 데이터는 화면 코드를 받는 동안 미리 요청한다(스타일 파일보다 앞에 둬야 기다리지 않고 바로 보냄)(remote.js 가 이어받아 같은 요청을 두 번 보내지 않음).
-  // 가짜 데이터 미리보기(포트 8000, ?mock)에서는 보내지 않는다(settings.js USE_MOCK 과 같은 조건)
-  if (!new URLSearchParams(location.search).has("mock") && location.port !== "8000") {
-    try {
-      window.__init = fetch("/api/init").then(r => { if (!r.ok) throw new Error("/api/init 응답 " + r.status); return r.json(); });
-      window.__init.catch(() => {});
-    } catch (e) {}
-  }
-</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- 글꼴은 화면을 막지 않게 따로 받는다. display=optional: 금방 오면 쓰고, 늦으면 이번에는 기본 글꼴 그대로(글자가 바뀌며 화면이 밀리지 않게). 받아 둔 글꼴은 다음 방문부터 바로 쓰임 -->
@@ -57,8 +47,9 @@
 <link rel="stylesheet" href="style.css">
 <script>try { const t = localStorage.getItem("mma-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <!-- 화면 코드 파일을 한꺼번에 받는다(app.js 가 부르는 파일 전부. 파일을 더하면 여기도 더함) -->
+<!-- 첫 화면(최종 순위)에 쓰는 마지막 날 기록을 화면 코드와 함께 미리 받는다(remote.js 의 fetch 와 같은 요청) -->
+<link rel="preload" href="/history/2026-11-13.json" as="fetch" crossorigin>
 <link rel="modulepreload" href="app.js">
-<link rel="modulepreload" href="settings.js">
 <link rel="modulepreload" href="remote.js">
 <link rel="modulepreload" href="format.js">
 <link rel="modulepreload" href="charts.js">
@@ -85,7 +76,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1>MMA 2026 글로벌 TOP10<small>멜론 · 베리즈 투표 트래커</small></h1>
+      <h1>MMA 2026 글로벌 TOP10<small>멜론 · 베리즈 투표 최종 결과</small></h1>
       <div class="tools">
         <button class="btn" id="copyBtn" type="button">요약 복사</button>
         <button class="btn" id="themeBtn" type="button">다크</button>
@@ -104,10 +95,11 @@
     <section class="view" id="view-berriz" style="--site:var(--berriz)" aria-labelledby="tab-berriz" hidden></section>
   </main>
   <footer class="about">
-    <h2>MMA 2026 글로벌 TOP10 투표 트래커</h2>
-    <p>MMA 2026(멜론뮤직어워드, Melon Music Awards) 글로벌 TOP10 부문의 멜론 투표와 베리즈 투표 득표수를 모아 실시간 순위를 보여 주는 비공식 MMA 트래커입니다.
-    투표 기간은 2026년 10월 30일 10시부터 11월 13일 23시 59분(한국 시간)까지이고, 멜론은 20초, 베리즈는 10분 간격으로 갱신합니다.
-    최종 결과는 음원 60%, 심사 20%, 투표 20%(멜론·베리즈 1:1)로 정해지며, 이 사이트의 합산 순위는 예측 음원 점수와 공개 투표수로 계산한 잠정 순위입니다.
+    <h2>MMA 2026 글로벌 TOP10 투표 최종 결과</h2>
+    <p>MMA 2026(멜론뮤직어워드, Melon Music Awards) 글로벌 TOP10 부문의 멜론 투표와 베리즈 투표 득표수를 모아 최종 순위를 보여 주는 비공식 MMA 트래커입니다.
+    투표는 2026년 10월 30일 10시부터 11월 13일 23시 59분(한국 시간)까지 진행됐고, 수집은 마감과 함께 끝났습니다.
+    멜론은 마감 시각 값, 베리즈는 마지막으로 수집한 11월 13일 21시 40분 집계를 씁니다.
+    최종 결과는 음원 60%, 심사 20%, 투표 20%(멜론·베리즈 1:1)로 정해지며, 이 사이트의 합산 순위는 예측 음원 점수와 공개 투표수로 계산한 잠정 순위입니다(심사 점수 제외).
     멜론·베리즈·MMA 공식 사이트가 아닙니다.</p>
   </footer>
 </div>
@@ -115,10 +107,10 @@
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button>
 <script>
-  // 다시 온 방문자: 마지막으로 본 글로벌 화면(6시간 이내)을 흐리게 바로 보여 주고, app.js 가 최신 값으로 바꾼다.
-  // 저장은 app.js saveView. 키 이름(mma-view-v1)을 바꾸면 예전 저장본은 쓰지 않는다(화면 구조를 크게 바꿀 때)
+  // 다시 온 방문자: 마지막으로 본 글로벌 화면(6시간 이내)을 흐리게 바로 보여 주고, app.js 가 다시 그린다.
+  // 저장은 app.js saveView. 키 이름(mma-view-v2)을 바꾸면 예전 저장본은 쓰지 않는다(화면 구조를 크게 바꿀 때)
   try {
-    const h = location.hash, c = JSON.parse(localStorage.getItem("mma-view-v1") || "null");
+    const h = location.hash, c = JSON.parse(localStorage.getItem("mma-view-v2") || "null");
     if (c && c.html && (!h || h === "#global") && Date.now() - c.at < 6 * 3600e3) {
       const v = document.getElementById("view-global");
       v.innerHTML = c.html; v.classList.add("cached"); v.dataset.cachedAt = c.at;

@@ -20,7 +20,9 @@ function ranksAt(M, B, t) {
   return v ? { ranks: rankMap(standings(...v)), ranks2: rankMap(combinedStandings(...v, { need: false })) } : null;
 }
 
-export function buildPayload(obsBySite, now, { sample = false } = {}) {
+// final: 투표가 끝난 뒤 최종 결과. 베리즈는 마감 2시간 20분 전(11/13 21:40) 집계가 마지막이라
+// 시각차로 합산을 멈추지 않고 두 사이트의 마지막 값을 그대로 합친다.
+export function buildPayload(obsBySite, now, { sample = false, final = false } = {}) {
   const M = obsBySite.melon || [], B = obsBySite.berriz || [];
   const sites = {};
   for (const [key, obs] of [["melon", M], ["berriz", B]]) {
@@ -32,7 +34,7 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
       // 최신 관측에 값이 없는 후보(사이트가 이름·ID를 바꾸면 생김). 0점처럼 보이므로 화면에 경고한다.
       missing: votes ? CANDIDATES.filter((c, k) => votes[k] == null).map(c => c.name) : [],
       ageMs: o ? now - o.observedAt : null,
-      stale: o ? now - o.observedAt > COLLECT.staleMs[key] : true,
+      stale: o ? !final && now - o.observedAt > COLLECT.staleMs[key] : true,
       max: sc ? sc.max : null,
       scores: sc ? sc.scores : null,
       series: buildSeries(obs, IDS, now, COLLECT.gapMs[key])
@@ -45,7 +47,7 @@ export function buildPayload(obsBySite, now, { sample = false } = {}) {
   let live = null;
   const mL = sites.melon.latest, bL = sites.berriz.latest;
   if (mL && bL) {
-    const skewMs = Math.abs(mL.observedAt - bL.observedAt), held = skewMs > COLLECT.maxSkewMs;
+    const skewMs = Math.abs(mL.observedAt - bL.observedAt), held = !final && skewMs > COLLECT.maxSkewMs;
     live = { melonAt: mL.observedAt, berrizAt: bL.observedAt, skewMs, held, compare: null };
     if (!held) {
       Object.assign(live, standings(mL.votes, bL.votes));

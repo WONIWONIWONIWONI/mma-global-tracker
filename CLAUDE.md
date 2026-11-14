@@ -1,7 +1,8 @@
 # MMA 2026 글로벌 TOP10 트래커
 
-멜론과 베리즈에서 동시에 진행되는 MMA 2026 글로벌 TOP10 투표를 실시간으로 수집하고,
-투표 점수(나중에 음원 점수까지)를 합쳐 순위를 보여주는 비공식 트래커.
+멜론과 베리즈에서 동시에 진행된 MMA 2026 글로벌 TOP10 투표의 비공식 트래커.
+**투표가 끝나(11/13 23:59) 11/14 최종 결과 조회 전용 사이트로 바꿨다.** 수집·API·데이터베이스는 모두 없앴고,
+`site/` 정적 파일(날짜별 기록 `site/history/*.json`)만으로 최종 순위와 투표 기간 기록을 보여 준다.
 
 ## 작업 방식 (사용자에 대해)
 
@@ -9,6 +10,20 @@
 - 명령 실행, 배포, 커밋은 Claude가 직접 하고, 무엇을 했는지 한두 문장으로 알린다.
 - 되돌리기 어려운 작업(데이터 삭제, 공개 저장소 변경, 유료 요금제 관련)은 하기 전에 먼저 묻는다.
 - 사용자가 직접 해야 하는 일(로그인, 브라우저 승인, 비밀값 입력 등)은 단계별로 짧게 안내한다.
+
+## 최종 결과 (11/14 정리)
+
+- 화면은 `site/remote.js`가 `/history/2026-10-30.json ~ 2026-11-13.json`을 읽어 `buildPayload(…, 마감 직전, { final: true })`로 계산.
+  첫 화면은 마지막 날 파일만으로 먼저 그리고(index.html 이 미리 받음), 나머지 날짜를 받으면 다시 그린다. 자동 갱신 없음.
+  "실시간" 대신 "최종 결과", 변동은 마지막 날(11/13) 00시 대비. 마감 분(11/14 00:00) 뒤 관측은 쓰지 않는다.
+- 멜론 최종값: 11/14 00:00:40 관측(총 3,664,867). 00:00:00 값보다 9표 많고 20초 뒤부터 굳어 그 값을 썼다(2026-11-13.json 마지막 멜론 줄).
+- 베리즈 최종값: 11/13 21:40 집계(마지막 수집). GitHub 수집 실행이 21:50에 5시간 40분 제한으로 끝나고 다음 실행이 00:28에야 시작돼
+  21:40 이후 집계를 놓쳤다. 베리즈는 마감 뒤 득표수를 공개하지 않는다(status CLOSED, voteCount null). final 모드는 시각차로 합산을 멈추지 않는다.
+- 00시 마감 기록에 11/11·11/12 00시가 없다(그 자정 전후 베리즈 수집이 비었음). 값을 지어내지 않는다.
+- 정리 작업(11/14): 수집·상태 확인·백업 GitHub 작업 삭제, Worker 는 정적 파일만(crons 빈 목록, API 없음 → /api 는 404),
+  D1 `mma-tracker` 삭제(관측 원본은 `backup/obs-*.ndjson.gz`, 11-14 파일은 마감 분 멜론 3줄), GitHub·Worker 비밀값 삭제.
+- 시험: `node --test "tests/*.test.js"`(점수·순위 계산 + 실제 기록 파일로 최종 결과 계산). 배포: `node node_modules/wrangler/bin/wrangler.js deploy`.
+- 로컬 미리보기: `미리보기.bat`(포트 8000, 실제 기록 파일 사용).
 
 ## 최우선 규칙: 추가 결제가 절대 생기지 않게 한다
 
@@ -106,117 +121,27 @@
   그래프처럼 코드가 직접 그리는 칸은 빈 칸으로 두고 그린 뒤 채운다. 다음 갱신 남은 초는 숫자만 바꾸고 translate="no".
 - 버튼으로 다시 그릴 때 스크롤 유지(`holdScroll`). 점수 추이 후보 버튼은 그래프 아래, 1·2위 차·10·11위 차에서도 자리를 남겨 칸 높이가 안 바뀜. 링크 미리보기: og 태그 + `site/og.png`.
 
-## 수집과 저장
+## 현재 상태 (2026-11-14)
 
-- 멜론(주): Cloudflare Workers Cron 1분마다, 한 번 실행 안에서 0·20·40초에 조회. 실행당 CPU 1~5ms.
-  0초 값만 h:/d: 조각(그래프·기록은 1분 간격), 20·40초 값은 최신값 조각 `l:melon`에만.
-- GitHub 수집 `.github/workflows/berriz.yml` + `scripts/github_collect.py`(비밀값 INGEST_TOKEN, Worker와 같은 값):
-  - 베리즈(주): 10분 경계 +60초에 읽고, 새 집계가 아니면 30초 간격으로 +6분까지 재확인 → POST /api/ingest/berriz.
-    Worker가 `berriz.parse`로 저장(같은 집계는 무시, 관측 시각은 GitHub이 읽은 시각 X-Observed-At).
-  - 멜론(보조): 1분마다 읽어 5분마다 POST /api/ingest/melon(15개씩). Worker는 이미 있는 분은 버리고 빠진 분만 채운다
-    (Cloudflare 한도 초과·Cron 누락 대비).
-  - 보내기 실패분은 보관했다가 5분마다 재전송, 실행이 끝날 때 남으면 `backup/pending.json`으로 저장소에 남기고 다음 실행이 이어서 보낸다.
-  - 사이트가 403을 3번 연속 주면 `scripts/blocked-<사이트>` 파일을 남기고 그 사이트 조회를 멈춘다(파일을 지우면 재개).
-  - 한 실행 최대 5시간 40분. 예약 7,22,37,52분은 다음 실행 대기용(concurrency 그룹 하나). 비밀값이 없으면 조용히 끝낸다.
-  - 이미 대기 중인 실행은 예약된 시점의 코드로 돈다. 수집 코드를 바꾸면 실행 중·대기 중 실행을 취소하고 새로 시작(gh run cancel, gh workflow run).
-  - GitHub이 장시간 Actions 사용을 문제 삼을 위험은 알고 있음. 사용자 결정(10/30): 문제가 생기면 그때 수정.
-- 시각 기준(`history.js slotOf`): 베리즈는 집계 시각(sourceAt), 멜론은 관측 시각을 분 단위 내림(정각 5초 전까지는 다음 분).
-  00:00 값은 전날 마감값. 사이트별 기준은 config.js `COLLECT`(오래된 값 멜론 3분·베리즈 20분, 빈 구간 10분·25분,
-  합산 보류 시각차 25분).
-- 저장: Cloudflare D1. obs(관측 원본, 1회 1행, 후보 전체 JSON), blob(화면용 조각: h: 시간, d: 날짜, l: 최신값,
-  m:usage 오늘 사용량, m:refresh 갱신 간격, c:<분> 요청 표본 집계). 자세한 설명은 `worker/index.js` 머리말.
-  후보별로 행을 나누면 무료 쓰기 한도를 넘는다. KV는 무료 쓰기가 하루 1,000회라 쓰지 않는다.
-- 데이터 형식: `{source, observedAt, sourceAt|null, totalVotes, candidates:{id: votes}}`. 누락값은 0으로 채우지 않는다.
-- 점수 계산은 브라우저가 `site/core/api.js`로 한다(Worker CPU 10ms 한도 때문에 Worker는 관측 조각만 내려줌).
-
-## 요청 한도 관리
-
-- 첫 화면 속도(11/1 개선, 느린 휴대폰 어림 5.7초 → 첫 방문 2.2초·다시 방문 1.3초):
-  - index.html 머리의 짧은 스크립트가 /api/init 를 바로 요청하고(`window.__init`, remote.js 가 이어받음, 스타일 파일보다 앞에 둘 것),
-    화면 코드는 `modulepreload` 로 한꺼번에 받는다(app.js 가 부르는 파일을 더하면 목록에도 더함).
-  - 첫 화면은 오늘 데이터만으로 그리고, 지난 날짜(/history)는 뒤에서 받아 점수 추이·날짜 선택만 다시 그린다(`takeLateBuild`, `applyLate`).
-  - 글꼴은 화면을 막지 않게 받고 `display=optional`(늦으면 그 방문은 기본 글꼴, 글자 바뀜으로 화면이 밀리지 않게).
-  - 다시 온 방문자: 마지막 글로벌 화면을 localStorage `mma-view-v1`(6시간 이내)에서 꺼내 흐리게 먼저 보여 주고 상태줄에
-    "HH:MM에 본 화면 · 최신 값을 불러오는 중…". 화면 구조를 크게 바꾸면 키 이름을 바꾼다.
-- 화면 갱신: 최소 20초. 사이 갱신은 /api/now(사이트별 최신 한 줄, 약 1KB, 캐시 10초), 그래프용 /api/latest(2시간치)는
-  5분마다, 첫 접속은 /api/init(오늘 + 최근 7시간 + 지난 날짜 목록), 지난 날짜는 /history/날짜.json(정적 파일).
-- 자리 비움: 15분 동안 조작이 없거나 탭이 백그라운드면 갱신을 멈춘다(`?idle=초`로 시험).
-- 서버가 갱신 간격(20~600초)을 정한다(10/30 개선):
-  - API 요청 8번에 1번꼴로 그 분의 칸(c:<분>)에 8을 더해 지금 속도를 잰다(쓰기 한도 절약 표본 집계).
-  - 매분 Cron(`adjustRefresh`)이 최근 3분 속도(직전 1분이 더 크면 그 값)와 오늘 쓴 양(5분마다 GraphQL 통계 `m:usage`
-    + 그 뒤 어림)으로, 남은 한도(10% 여유, 고정 요청 분당 3 제외)를 초기화까지 고르게 쓰는 가장 짧은 간격을 `m:refresh`에 둔다.
-  - 늘릴 때는 바로, 줄일 때는 1분에 절반까지만(출렁임 방지). 1~2분 안에 반응(전에는 15~20분).
-  - 화면은 API 응답의 refreshSec 를 따른다. m:refresh 가 10분 넘게 안 바뀌면 120초.
-- 하루 시청 약 550시간(동시 평균 20여 명)까지 20초 유지 어림. 그 이상은 자동으로 간격이 늘어난다.
-- workers.dev 주소에서는 Cache API가 동작하지 않는다.
-
-## 백업·알림·시험
-
-- 백업 `.github/workflows/backup.yml`(매일 00:30 KST): `scripts/backup.py`가 끝난 날짜의 obs 원본을
-  `backup/obs-YYYY-MM-DD.ndjson.gz`로, 화면용 `site/history/YYYY-MM-DD.json`(시각순 정렬)을 만들어 커밋하고
-  `wrangler deploy`로 올린다(CF_DEPLOY_TOKEN). 끝난 지 3일 이내 날짜는 매번 다시 만든다(늦게 채워진 관측 반영).
-  주의: 로컬에서 배포할 때는 먼저 `git pull`(밤마다 백업 작업이 날짜 파일을 커밋한다).
-- 수집 이상 알림 `.github/workflows/health.yml`(30분마다, 투표 기간만): `scripts/health.py`가 /api/latest를 확인해
-  API 오류, 오래된 관측(멜론 15분·베리즈 35분), 최신 관측에서 빠진 팀, 가짜 데이터면 이슈를 열고 저장소 주인을 언급
-  (이메일 알림), 정상이면 닫는다(라벨 collect-alert).
-- 자동 시험 `tests/`(Node 기본 시험 도구, 설치 없음): 점수·순위(투표만/음원 포함), 시각 기준과 00시 마감, 빈 구간,
-  합산 보류, 빠진 팀, 점수 차 표시, Worker 보조 수집 중복 제외·베리즈 중복 제외·비밀값 확인·갱신 간격 계산(가짜 D1).
-  `npm test`. `npm run deploy`는 시험이 통과해야 배포한다. GitHub에 올리면 `.github/workflows/test.yml`도 돈다.
-  Claude 앱 PowerShell에서는 `node --test "tests/*.test.js"` 후 `node node_modules/wrangler/bin/wrangler.js deploy`.
-  (Node 22는 `node --test tests/`처럼 폴더를 주면 실패한다. 파일 패턴으로 준다)
-
-## 비밀값 (파일에 적지 않음)
-
-- CF_API_TOKEN(Account Analytics 읽기 + D1 읽기), CF_ACCOUNT_ID: Worker 비밀값과 GitHub 저장소 비밀값 양쪽.
-- CF_DEPLOY_TOKEN("Edit Cloudflare Workers" 템플릿 + D1 읽기): GitHub 저장소 비밀값(밤 백업의 정적 파일 배포).
-- INGEST_TOKEN(사용자가 만든 긴 무작위 글자): Worker 비밀값과 GitHub 저장소 비밀값 양쪽(GitHub 수집 → Worker 저장).
-- 토큰 값은 사용자가 직접 입력한다(Claude가 받거나 입력하지 않는다). 로컬 시험용 값은 `.dev.vars`(커밋 안 됨).
-
-## 현재 상태 (2026-10-30)
-
-- 운영 주소: https://mma-global-tracker.happyapple.workers.dev
-  멜론 20초(Cloudflare) + 1분 보조(GitHub), 베리즈 10분(GitHub, 10:30 집계부터). 세 탭 모두 열림, 글로벌은 예측 음원 포함 80점.
-- 가짜 데이터는 10/30 10:07에 D1에서 모두 삭제했다.
-- Cloudflare 무료 플랜. D1 `mma-tracker`(APAC, id는 wrangler.jsonc). wrangler 로그인 완료.
-- 저장소: https://github.com/WONIWONIWONIWONI/mma-global-tracker (공개, main 브랜치)
+- 운영 주소: https://mma-global-tracker.happyapple.workers.dev (최종 결과 조회 전용, 정적 파일만)
+- Cloudflare 무료 플랜. wrangler 로그인 완료. D1 없음.
+- 저장소: https://github.com/WONIWONIWONIWONI/mma-global-tracker (공개, main 브랜치). GitHub 작업은 시험(test.yml)만.
 - 개인정보: 공개 저장소다. 사용자의 이메일, 이메일에서 나온 아이디, 계정 ID를 파일·커밋에 적지 않는다.
-  workers.dev 하위 도메인은 원래 이메일 아이디였어서 사용자가 happyapple로 바꿨다(10/29).
-- 방문 통계: Cloudflare Web Analytics(무료, 쿠키 없음, 운영 주소에서만 로드). 대시보드 → 관찰 가능성 → Web Analytics.
+- 방문 통계: Cloudflare Web Analytics(무료, 쿠키 없음, 운영 주소에서만 로드).
+- 검색: 구글 서치 콘솔 확인 태그·canonical·sitemap.xml·robots.txt, 맨 아래 소개 글(index.html).
 
 ## 다음 작업 후보
 
 - 공식 음원 점수가 나오면 config.js chart 값 교체, chartEstimated false.
-- 이미지 공유 확장: 시간대별 증가량·일일 득표량·마감 기록 표는 아직 공유 버튼이 없다.
-- 12시간 표차 예측은 넣지 않는다(점수 구조가 달라 검증이 안 됨).
 
 ## 파일 구조
 
 - `site/` 정적 화면(배포 시 그대로 공개)
-  - `app.js` 화면, `charts.js` 차트, `format.js` 표시 형식, `settings.js` 데이터 출처·최소 갱신 간격, `share.js` 이미지 공유
-  - `remote.js` /api에서 관측을 받아 모으고 `core/api.js`로 계산, 서버가 정한 갱신 간격 보관
-  - `core/` 계산(브라우저·Worker 공용, 외부 라이브러리 없음): `config.js` 후보·규칙·수집 기준·점검 표시,
-    `scoring.js` 점수·순위·역전 필요 표, `history.js` 시각 기준·시계열, `api.js` 화면 데이터,
-    `fakeSource.js`·`mockApi.js` 가짜 데이터(로컬 미리보기용)
-- `worker/index.js` 멜론 수집(Cron), GitHub 수집 받기(/api/ingest/*), 갱신 간격 계산, /api(init, latest, now), /history.
-  `worker/adapters/` 멜론·베리즈 응답 해석(`parse`), `worker/schema.sql` D1 표
-- `scripts/github_collect.py` GitHub 수집, `scripts/backup.py` 백업, `scripts/health.py` 상태 확인,
-  `scripts/seed-local.mjs` 로컬 D1에 가짜 관측 채우기(원격은 건드리지 않음)
-- `tests/` 자동 시험, `backup/` 백업 파일, `.github/workflows/` 수집·백업·상태 확인·시험
-- `wrangler.jsonc` Worker 설정, `package.json` 명령(test, dev, deploy, db:init:local/remote)
-
-## 실행 방법
-
-- 가짜 데이터 미리보기: `미리보기.bat` 또는 `python -m http.server 8000 --directory site` → http://localhost:8000/
-  (포트 8000이나 `?mock`이면 브라우저 안 가짜 API, 점검 중 표시도 무시)
-- Worker까지 로컬 실행: `npm run db:init:local`, `node scripts/seed-local.mjs`, `npm run dev` → http://localhost:8787/
-  수집 1회: http://localhost:8787/__scheduled?cron=*+*+*+*+*
-  GitHub 수집 시험: `INGEST_BASE=http://localhost:8787/api/ingest`, `INGEST_TOKEN=.dev.vars 값`으로 `python scripts/github_collect.py --once`
-- Claude 앱 PowerShell에서는 PATH를 다시 읽고(`$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + ...User`)
-  wrangler는 `node node_modules/wrangler/bin/wrangler.js ...`, `$env:CI="true"`로 실행한다.
-- D1 문장은 100KB 제한, 무료 플랜은 실행당 D1 쿼리 50개 제한(GitHub 멜론 묶음을 15개로 나누는 이유).
-- npm 12는 설치 스크립트를 막는다. workerd, esbuild는 `npm install-scripts approve`로 허용해 두었다.
-- PowerShell 5.1의 `Set-Content -Encoding utf8`은 BOM을 붙인다. 파일 수정은 Edit 도구로 한다.
-- 커밋 작성자 이메일은 GitHub noreply 주소(338686815+WONIWONIWONIWONI@users.noreply.github.com)를 쓴다.
+  - `app.js` 화면, `charts.js` 차트, `format.js` 표시 형식, `share.js` 이미지 공유, `patch.js` 바뀐 곳만 고치기
+  - `remote.js` 날짜별 기록 파일을 받아 `core/api.js`로 최종 결과 계산
+  - `core/` 계산: `config.js` 후보·규칙, `scoring.js` 점수·순위·역전 필요 표, `history.js` 시각 기준·시계열, `api.js` 화면 데이터
+  - `history/` 날짜별 기록(5분 간격, 마지막 날은 마감 분까지)
+- `tests/` 자동 시험, `backup/` 관측 원본 백업, `wrangler.jsonc` Worker 설정(정적 파일만)
 
 ## 참고
 

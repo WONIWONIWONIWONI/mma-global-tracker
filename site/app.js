@@ -1,5 +1,4 @@
-// 화면. API 응답(점수 계산이 끝난 결과)을 받아 그리기만 한다.
-import { USE_MOCK, REFRESH_MS, IDLE_MS } from "./settings.js";
+// 화면. 투표가 끝나 최종 결과만 보여 준다(remote.js 가 날짜별 기록 파일로 계산한 결과를 그리기만 한다).
 import * as remote from "./remote.js";
 import { MIN, HOUR, DAY, KST, fmt, signed, f2, fgap, gapLabel, man, sum, kd, pad, hm, hms, md, mdK, midnight, esc } from "./format.js";
 import { drawLine, drawCandles } from "./charts.js";
@@ -13,45 +12,23 @@ const $ = s => document.querySelector(s);
 const PALETTE = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)", "var(--c8)"];
 const VIEWS = ["global", "melon", "berriz"];
 // 점검 중인 탭과 사이트(config.js MAINTENANCE). 내 컴퓨터의 가짜 데이터 미리보기에서는 모두 연다.
-const CLOSED_TABS = USE_MOCK ? [] : MAINTENANCE.tabs, CLOSED_SITES = USE_MOCK ? [] : MAINTENANCE.sites;
+const CLOSED_TABS = MAINTENANCE.tabs, CLOSED_SITES = MAINTENANCE.sites;
 const OPEN_VIEWS = VIEWS.filter(v => !CLOSED_TABS.includes(v));
 
 /* ───────── 데이터 ───────── */
 let P = null, CANDS = [], K = {}, RULES = null;
-let nextFetch = 0, loading = false, loadError = null, refreshMs = REFRESH_MS;
-let lastActive = Date.now(), paused = false;
+let loadError = null;
 
-async function fetchPayload() {
-  if (USE_MOCK) return (await import("./core/mockApi.js")).getPayload(Date.now());
-  return remote.loadRemote();
-}
-async function refresh() {
-  if (loading) return;
-  loading = true;
+async function load() {
   try {
-    apply(await fetchPayload()); loadError = null;
-    // 첫 화면 뒤 지난 날짜까지 받으면 다시 계산해 그린다(점수 추이 "전체"·마감 기록)
-    const late = !USE_MOCK && remote.takeLateBuild();
-    if (late) late.then(p => { if (p) applyLate(p); }).catch(e => console.warn(e));
+    apply(await remote.loadRemote());
+    // 나머지 날짜까지 받으면 점수 추이·날짜 선택을 채운다
+    const late = remote.takeLateBuild();
+    if (late) late.then(p => { if (p) apply(p); }).catch(e => console.warn(e));
   }
-  catch (e) { loadError = e; console.error(e); if (!P) patchHTML($("#view-" + VIEW), '<p class="empty">데이터를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</p>'); }
-  finally {
-    loading = false;
-    // 서버가 정한 간격을 따르고, 여러 화면이 같은 순간에 몰리지 않게 간격의 1/4(최대 10초)까지 무작위로 더한다
-    refreshMs = USE_MOCK ? REFRESH_MS : Math.max(REFRESH_MS, remote.serverRefreshSec * 1000);
-    nextFetch = Date.now() + refreshMs + (USE_MOCK ? 0 : Math.random() * Math.min(10e3, refreshMs / 4));
-    renderStatus();
-  }
+  catch (e) { loadError = e; console.error(e); if (!P) patchHTML($("#view-" + VIEW), '<p class="empty">데이터를 불러오지 못했습니다. 새로고침해 주세요.</p>'); }
+  renderStatus();
 }
-
-// 자리 비움: 조작이 없으면 갱신을 멈추고, 다시 움직이면 바로 최신값을 받는다
-function activity() {
-  const now = Date.now();
-  if (now - lastActive < 1000 && !paused) return;
-  lastActive = now;
-  if (paused) { paused = false; refresh(); }
-}
-for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart", "scroll"]) addEventListener(ev, activity, { passive: true });
 function apply(p) {
   const first = !P;
   P = p; RULES = p.config.rules;
@@ -63,14 +40,6 @@ function apply(p) {
 
 // 지난 날짜가 늦게 도착했을 때: 글로벌 화면은 그것이 바꾸는 곳(점수 추이, 날짜 선택)만 다시 그린다.
 // 화면 전체를 다시 그리면 첫 화면의 큰 글자가 새로 그려져 "첫 화면 표시 시간"이 늦게 잡힌다.
-function applyLate(p) {
-  const chart = $("#g-chart"), sel = $("#snapSel");
-  if (VIEW !== "global" || !P || !chart || !sel || G.snap !== "live") return apply(p);
-  P = p;
-  sel.innerHTML = '<option value="live">실시간</option>' + snapOptions(P.snapshots.map(s => s.at));
-  drawTrend();
-}
-
 // 시계열에서 ts 시점에 알고 있던 값의 위치(없으면 -1)
 function at(ser, ts) {
   const t = ser.t; let lo = 0, hi = t.length - 1, r = -1;
@@ -109,7 +78,7 @@ function needHTML(n) {
 }
 
 /* ───────── 글로벌 TOP10 ───────── */
-// 선택한 날짜(실시간 또는 00시 마감)의 순위 데이터. 화면과 공유 이미지가 같이 쓴다.
+// 선택한 날짜(최종 결과 또는 00시 마감)의 순위 데이터. 화면과 공유 이미지가 같이 쓴다.
 function globalData() {
   const L = P.live, snaps = P.snapshots.map(s => s.at);
   if (G.snap !== "live" && !snaps.includes(G.snap)) G.snap = "live";
@@ -117,16 +86,16 @@ function globalData() {
   if (G.snap === "live") {
     if (!L) hold = "아직 두 사이트의 관측이 모두 모이지 않았습니다.";
     else {
-      when = `실시간 · 멜론 ${hm(L.melonAt)} / 베리즈 ${hm(L.berrizAt)} 관측`;
+      when = `투표 마감 · 멜론 ${md(L.melonAt)} ${hm(L.melonAt)} 마감값 / 베리즈 ${md(L.berrizAt)} ${hm(P.sites.berriz.latest.sourceAt || L.berrizAt)} 마지막 집계`;
       if (L.held) hold = `두 사이트의 관측 시각이 ${Math.round(L.skewMs / MIN)}분 벌어져 합산을 잠시 멈췄습니다. 수집이 정상으로 돌아오면 다시 표시합니다.`;
-      else { data = L; prevRanks = L.compare && L.compare.ranks; if (prevRanks) cmp = "오늘 00시 대비"; }
+      else { data = L; prevRanks = L.compare && L.compare.ranks; if (prevRanks) cmp = "마지막 날 00시 대비"; }
     }
   } else {
     data = P.snapshots.find(s => s.at === G.snap); prevRanks = data.prevRanks; if (prevRanks) cmp = "전날 마감 대비";
     when = `${mdK(G.snap - 1)} 마감 · ${md(G.snap)} 00:00 관측`;
   }
   let R = data ? data.rows.map(r => ({ ...r, k: K[r.id] })) : null, ratio = null;
-  // 방식 2: 같은 득표수로 다시 계산한다. 변동 열은 방식 1과 같은 기준(오늘 00시 / 전날 마감)의 방식 2 순위와 비교한다
+  // 방식 2: 같은 득표수로 다시 계산한다. 변동 열은 방식 1과 같은 기준(마지막 날 00시 / 전날 마감)의 방식 2 순위와 비교한다
   if (R && G.method === "2") {
     const mv = [], bv = [];
     for (const r of R) { mv[r.k] = r.mv; bv[r.k] = r.bv; }
@@ -163,7 +132,7 @@ function saveView() {
   v.classList.remove("cached"); delete v.dataset.cachedAt;
   if (!P || !P.live || Date.now() - savedAt < 30e3) return;
   savedAt = Date.now();
-  try { localStorage.setItem("mma-view-v1", JSON.stringify({ at: savedAt, html: v.innerHTML })); } catch (e) {}
+  try { localStorage.setItem("mma-view-v2", JSON.stringify({ at: savedAt, html: v.innerHTML })); } catch (e) {}
 }
 function drawGlobal() {
   const v = $("#view-global"), CUT = RULES.cutoff, MAXT = RULES.provisionalMax, M2 = G.method === "2";
@@ -257,14 +226,14 @@ function drawGlobal() {
   const snapOpts = snapOptions(snaps);
   patchHTML(v, `${cards}
   <div class="panel">
-    <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "실시간 잠정 순위" : "실시간 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
-      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">실시간</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
+    <div class="phead"><div><h2>${G.snap === "live" ? (RULES.useChart ? "최종 잠정 순위" : "최종 투표 점수 순위") : mdK(G.snap - 1) + " 마감 순위"}<span class="mtag">방식 ${G.method}</span></h2><p>${when}${cmp ? " · 변동은 " + cmp : ""}</p></div>
+      <div class="ctrl"><label class="lbl" for="snapSel">날짜</label><select id="snapSel"><option value="live">최종 결과</option>${snapOpts}</select>${R ? shareBtn("g-rank") : ""}</div></div>
     ${table}
     <p class="note">${RULES.useChart
       ? `${RULES.chartEstimated ? "음원 점수는 공식 발표 전 예측값입니다. " : ""}심사 점수 ${RULES.judgeScore}점은 공개되지 않아 빠져 있습니다. 합산은 ${MAXT}점 만점 기준의 잠정 순위입니다.`
       : `<b>투표 점수만 합산한 ${MAXT}점 만점 순위입니다.</b> 실제 결과에 들어가는 음원 점수 ${RULES.chartMax}점과 심사 점수 ${RULES.judgeScore}점은 빠져 있어 최종 순위와 다를 수 있습니다.`} ${M2
-      ? `<b>방식 2(득표율 기준)</b>: 베리즈 표 × ${rx} + 멜론 표를 이 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다. 지금은 베리즈 1표가 멜론 약 ${rx}표와 같고, 이 배수는 득표 총수가 바뀌면 함께 바뀝니다.`
-      : `<b>방식 1(사이트 1위 기준)</b>: 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점씩 나눠 1:1로 더합니다. 사이트 1위가 바뀌면 그 사이트의 기준도 바뀝니다.`} 변동은 오늘 00시(마감 기록은 전날 마감) 같은 방식 순위와 비교합니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산이며, 아래 점수 추이도 고른 방식으로 계산합니다.</p>
+      ? `<b>방식 2(득표율 기준)</b>: 베리즈 표 × ${rx} + 멜론 표를 이 합계 1위 대비 비율로 ${2 * RULES.siteMax}점 나눕니다. 이 시점에는 베리즈 1표가 멜론 약 ${rx}표와 같습니다(배수는 득표 총수에 따라 바뀜).`
+      : `<b>방식 1(사이트 1위 기준)</b>: 각 사이트 1위 득표수 대비 비율로 ${RULES.siteMax}점씩 나눠 1:1로 더합니다. 사이트 1위가 바뀌면 그 사이트의 기준도 바뀝니다.`} 변동은 마지막 날 00시(마감 기록은 전날 마감) 같은 방식 순위와 비교합니다. 역전에 필요한 표는 다른 후보 표가 그대로일 때 한 사이트에서만 더 받는 경우의 계산이며, 아래 점수 추이도 고른 방식으로 계산합니다.</p>
   </div>
   <div class="panel">
     <div class="phead"><div><h2>점수 추이<span class="mtag">방식 ${G.method}</span></h2><p>10분 간격 관측으로 다시 계산한 합산 점수 · ${M2 ? "방식 2(득표율 기준)" : "방식 1(사이트 1위 기준)"}</p></div>
@@ -388,7 +357,7 @@ function drawSite(key) {
     <div class="card gap"><span class="k">1·2위 표차</span><span class="v num" style="font-family:var(--f-disp)">${fmt(gap)}</span><span class="s">1시간 전보다 <span class="${gapH > 0 ? "up" : gapH < 0 ? "down" : ""}">${signed(gapH)}</span>${gapH > 0 ? " 벌어짐" : gapH < 0 ? " 좁혀짐" : ""}</span></div>
     ${card(sec, 2)}</div>
   <div class="panel">
-    <div class="phead"><div><h2>${s.name} 전체 현황</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div><div class="ctrl">${shareBtn(key + "-list")}</div></div>
+    <div class="phead"><div><h2>${s.name} 최종 득표</h2><p>총 ${fmt(total)}표 · ${md(now)} ${hm(now)} 관측 · 점수는 이 사이트 1위 대비 ${RULES.siteMax}점 환산</p></div><div class="ctrl">${shareBtn(key + "-list")}</div></div>
     <div class="tscroll list-wide"><table class="list"><thead><tr><th>순위</th><th>후보</th><th>득표수</th><th>점유율</th><th>앞 순위와</th><th>1시간 증가</th><th>점수</th></tr></thead><tbody>${listRows}</tbody></table></div>
     <ol class="site-m">${listM}</ol>
     <p class="hint-m">작은 글씨는 이 사이트 점수(10점 만점)와 1시간 증가, 오른쪽 아래는 앞 순위와의 표 차이입니다.</p>
@@ -460,7 +429,7 @@ async function makeShare(kind) {
     if (!R) throw new Error("순위 데이터 없음");
     const live = G.snap === "live", ts = live ? Math.max(P.live.melonAt, P.live.berrizAt) : G.snap, M2 = G.method === "2";
     const m = {
-      title: (live ? (RULES.useChart ? "MMA 2026 글로벌 TOP10 잠정 순위" : "MMA 2026 글로벌 TOP10 투표 점수 순위") :`MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`) + (M2 ? " · 방식 2(득표율 기준)" : " · 방식 1(사이트 1위 기준)"),
+      title: (live ? (RULES.useChart ? "MMA 2026 글로벌 TOP10 최종 잠정 순위" : "MMA 2026 글로벌 TOP10 최종 투표 점수 순위") :`MMA 2026 글로벌 TOP10 · ${mdK(G.snap - 1)} 마감`) + (M2 ? " · 방식 2(득표율 기준)" : " · 방식 1(사이트 1위 기준)"),
       sub: when, sample: P.sample, cutoff: RULES.cutoff, combined: M2, voteMax: 2 * RULES.siteMax,
       note: rankNote() + " · " + methodNote(G.method, ratio),
       chartLabel: !RULES.useChart ? null : RULES.chartEstimated ? "음원(예측)" : "음원",
@@ -473,7 +442,7 @@ async function makeShare(kind) {
   if (part === "list") {
     const D = siteData(key);
     const m = {
-      title: `${D.s.name} 투표 현황`, sub: `총 ${fmt(D.total)}표 · ${stampOf(D.now)} 관측`, sample: P.sample, site: key,
+      title: `${D.s.name} 최종 득표`, sub: `총 ${fmt(D.total)}표 · ${stampOf(D.now)} 관측`, sample: P.sample, site: key,
       note: `비공식 트래커 · 점수는 ${D.s.name} 1위 대비 ${RULES.siteMax}점 환산`,
       rows: D.order.map((k, i) => ({ rank: i + 1, name: CANDS[k].name, votes: D.vals[k], share: D.share(k),
         gap: i ? D.vals[D.order[i - 1]] - D.vals[k] : null, h1: D.diff(D.h1, k), score: D.s.scores[k], pin: k === G.pin }))
@@ -504,45 +473,21 @@ async function makeShare(kind) {
 }
 
 /* ───────── 상태줄 · 렌더 · 이벤트 ───────── */
-// 투표 기간 안내: 시작 전 / 마감까지 남은 시간 / 종료
-function voteStatus(now) {
-  const v = P.config.vote; if (!v) return "";
-  const s = Date.parse(v.start), e = Date.parse(v.end);
-  if (now < s) return `<span>투표 시작 전 · <b class="num">${md(s)} ${hm(s)}</b> 시작</span>`;
-  if (now >= e) return "<span><b>투표 종료</b></span>";
-  const left = e - now, d = Math.floor(left / DAY), h = Math.floor(left % DAY / HOUR), mi = Math.floor(left % HOUR / MIN);
-  return `<span>마감까지 <b class="num">${d ? d + "일 " + h + "시간" : h ? h + "시간 " + mi + "분" : mi + "분"}</b></span>`;
-}
-
-// 상태줄: 매초 바뀌는 건 남은 초(#cd)뿐이라 그 숫자만 고친다. 나머지가 바뀔 때만 다시 그려 화면이 들썩이지 않게 한다.
-let statusHTML = "";
+// 상태줄: 투표 종료 안내와 두 사이트의 마지막 값 시각
 function renderStatus() {
   const el = $("#status");
   if (!P) {
     const c = +($("#view-global").dataset.cachedAt || 0);
-    el.textContent = loadError ? "데이터를 불러오지 못했습니다" : c ? `${hm(c)}에 본 화면 · 최신 값을 불러오는 중…` : "불러오는 중…";
+    el.textContent = loadError ? "데이터를 불러오지 못했습니다. 새로고침해 주세요." : c ? "최종 결과를 불러오는 중…" : "불러오는 중…";
     return;
   }
-  const now = Date.now(), m = P.sites.melon, b = P.sites.berriz;
-  const closed = k => CLOSED_SITES.includes(k);
-  const site = (s, k) => closed(k) ? "<b>점검 중</b>" : s.latest
-    ? `<b class="num">${hms(s.latest.observedAt)}</b>${s.latest.sourceAt ? ` <span class="hide-m">(사이트 집계 <b class="num">${hm(s.latest.sourceAt)}</b>)</span>` : ""}${s.stale ? ` <span class="warn">${Math.floor((now - s.latest.observedAt) / MIN)}분 전 값</span>` : ""}`
-    : '<b class="warn">관측 없음</b>';
-  const ok = !loadError && (closed("melon") || !m.stale) && (closed("berriz") || !b.stale);
-  const html = `<span class="live${ok ? "" : " off"}"><i></i><b>멜론 20초 · 베리즈 10분 간격 수집</b></span>
-    <span>멜론 ${site(m, "melon")}</span><span>베리즈 ${site(b, "berriz")}</span>
-    ${P.live ? `<span class="hide-m">사이트 간 시각차 <b class="num">${P.live.skewMs < 120e3 ? Math.round(P.live.skewMs / 1000) + "초" : Math.round(P.live.skewMs / MIN) + "분"}</b></span>` : ""}
-    ${paused
-      ? '<button type="button" class="btn">자리 비움으로 갱신 멈춤 · 누르면 다시 시작</button>'
-      : '<span>다음 갱신 <b class="num cd" id="cd" translate="no"></b>초</span>'}
-    ${voteStatus(now)}
-    ${refreshMs > REFRESH_MS ? `<span class="warn">접속이 많아 ${refreshMs % 60e3 ? refreshMs / 1000 + "초" : refreshMs / 60e3 + "분"} 간격으로 갱신 중</span>` : ""}
-    ${loadError ? '<span class="warn">최근 갱신 실패 · 이전 값 표시 중</span>' : ""}
-    ${[m, b].filter(s => s.missing && s.missing.length).map(s => `<span class="warn" title="${esc(s.missing.join(", "))}">${s.name} ${s.missing.length}팀 값 없음(사이트 표기 변경 확인 중)</span>`).join("")}
-    ${P.sample ? '<span class="sample">예시 데이터 · 투표 주소 공개 전 화면</span>' : ""}`;
-  if (html !== statusHTML) { patchHTML(el, html); statusHTML = html; }
-  const cd = el.querySelector("#cd");
-  if (cd) { const t = String(Math.max(0, Math.ceil((nextFetch - now) / 1000))); if (cd.textContent !== t) cd.textContent = t; }
+  const m = P.sites.melon, b = P.sites.berriz;
+  const at = s => s.latest ? `<b class="num">${md(s.latest.observedAt)} ${hm(s.latest.sourceAt || s.latest.observedAt)}</b>` : '<b class="warn">값 없음</b>';
+  patchHTML(el, `<span class="live off"><i></i><b>투표 종료 · 최종 결과</b></span>
+    <span>기간 <b class="num">10/30 10:00 ~ 11/13 23:59</b></span>
+    <span>멜론 ${at(m)} 마감값</span>
+    <span>베리즈 ${at(b)} 집계가 마지막 <span class="hide-m">(이후 집계는 수집하지 못했고, 베리즈는 마감 뒤 득표수를 공개하지 않음)</span></span>
+    ${loadError ? '<span class="warn">일부 기록을 불러오지 못함</span>' : ""}`);
 }
 function render() { if (P) { if (VIEW === "global") renderGlobal(); else renderSite(VIEW); } }
 function show(view) {
@@ -589,19 +534,6 @@ document.querySelector("main").addEventListener("change", e => {
   ST[m[1]][{ a: "a", b: "b", hd: "hDate", dd: "dDate" }[m[2]]] = +el.value; renderSite(m[1]);
 });
 document.addEventListener("toggle", e => { if (e.target.id) openState[e.target.id] = e.target.open; }, true);
-
-// 자동 갱신: 보이는 탭에서만, 조작이 IDLE_MS 넘게 없으면 멈춤. 돌아오거나 움직이면 바로 갱신.
-setInterval(() => {
-  if (!document.hidden && !paused && !loading && Date.now() >= nextFetch) {
-    if (Date.now() - lastActive > IDLE_MS) paused = true; else refresh();
-  }
-  renderStatus();
-}, 1000);
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) return;
-  activity();
-  if (!paused && Date.now() >= nextFetch) refresh();
-});
 
 let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(render, 150); }).observe(document.querySelector("main"));
 
@@ -674,19 +606,19 @@ syncThemeBtn();
 function summary() {
   if (VIEW === "global") {
     const L = P.live;
-    if (!L || L.held) return "MMA 2026 글로벌 TOP10: 지금은 합산을 보류 중입니다.";
+    if (!L) return "MMA 2026 글로벌 TOP10: 최종 결과를 불러오지 못했습니다.";
     const CUT = RULES.cutoff, M2 = G.method === "2";
     const cs = M2 ? combinedStandings(...[L.rows, L.rows].map((x, j) => { const a = []; for (const r of x) a[K[r.id]] = j ? r.bv : r.mv; return a; })) : null, rows = cs ? cs.rows : L.rows;
     return [(RULES.useChart
-        ? `MMA 2026 글로벌 TOP10 잠정 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, 심사 ${RULES.judgeScore}점 미반영)`
-        : `MMA 2026 글로벌 TOP10 투표 점수 순위 (${md(L.melonAt)} ${hm(L.melonAt)}, ${RULES.provisionalMax}점 만점 · 음원·심사 미반영)`)
+        ? `MMA 2026 글로벌 TOP10 최종 잠정 순위 (투표 마감, 음원 예측값 사용, 심사 ${RULES.judgeScore}점 미반영)`
+        : `MMA 2026 글로벌 TOP10 최종 투표 점수 순위 (투표 마감, ${RULES.provisionalMax}점 만점 · 음원·심사 미반영)`)
         + " · " + methodNote(G.method, cs && cs.ratio),
       ...rows.slice(0, CUT).map(r => `${r.rank}. ${r.name} ${f2(r.total)} (${RULES.useChart ? `음원 ${f2(r.chart)} + ` : ""}${M2 ? `투표 ${f2(r.vote)}` : `멜론 ${f2(r.ms)} + 베리즈 ${f2(r.bs)}`})`),
       `컷: 10위와 11위 ${f2(rows[CUT - 1].total - rows[CUT].total)}점 차`].join("\n");
   }
   const s = P.sites[VIEW]; if (!s.latest) return s.name + " 관측이 아직 없습니다.";
   const v = s.latest.votes, t = sum(v), o = CANDS.map(c => c.k).sort((a, b) => (v[b] ?? -1) - (v[a] ?? -1)), at0 = s.latest.observedAt;
-  return [`${s.name} 투표 현황 (${md(at0)} ${hm(at0)})`, ...o.slice(0, 5).map((k, r) => `${r + 1}. ${CANDS[k].name} ${fmt(v[k])}표 (${(t ? v[k] / t * 100 : 0).toFixed(2)}%)`), `1·2위 표차 ${fmt(v[o[0]] - v[o[1]])}표`].join("\n");
+  return [`${s.name} 최종 투표 결과 (${md(at0)} ${hm(s.latest.sourceAt || at0)} 기준)`, ...o.slice(0, 5).map((k, r) => `${r + 1}. ${CANDS[k].name} ${fmt(v[k])}표 (${(t ? v[k] / t * 100 : 0).toFixed(2)}%)`), `1·2위 표차 ${fmt(v[o[0]] - v[o[1]])}표`].join("\n");
 }
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 1800); }
 $("#copyBtn").addEventListener("click", () => {
@@ -699,4 +631,4 @@ $("#copyBtn").addEventListener("click", () => {
 });
 
 show(location.hash.slice(1) || OPEN_VIEWS[0]);
-refresh();
+load();

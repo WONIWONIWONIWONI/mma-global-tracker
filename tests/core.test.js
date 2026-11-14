@@ -7,7 +7,7 @@ import { siteScores, votesNeeded, standings, combinedStandings } from "../site/c
 import { slotOf, votesAsOf } from "../site/core/history.js";
 import { buildPayload } from "../site/core/api.js";
 import { fgap, gapLabel } from "../site/format.js";
-import { dayBlobKey, hourKey, dayKey } from "../worker/index.js";
+import { readFileSync } from "node:fs";
 
 const MIN = 60e3;
 const T = Date.parse("2026-10-31T00:00:00+09:00");   // KST 자정
@@ -90,14 +90,6 @@ test("시각 기준(slotOf): 자정 몇 초 전 관측은 자정 값, 20초 수�
   assert.equal(slotOf({ observedAt: T + 3 * MIN, sourceAt: T }), T); // 베리즈 00:00 집계를 00:03에 받음 → 00:00
 });
 
-test("날짜 조각: 00:00 수집은 전날 마감, 5분 정각만 하루 조각에", () => {
-  assert.equal(dayBlobKey(T), "d:2026-10-30");
-  assert.equal(dayBlobKey(T + 5 * MIN), "d:2026-10-31");
-  assert.equal(dayBlobKey(T + 3 * MIN), null);
-  assert.equal(dayKey(T), "d:2026-10-31");
-  assert.equal(hourKey(T + 30 * MIN), "h:2026-10-30T15");
-});
-
 test("빈 구간: 사이트별 허용 시간을 넘으면 값 없음(0으로 채우지 않음)", () => {
   const ids = CANDIDATES.map(c => c.id), o = { observedAt: T, sourceAt: T, candidates: { bts: 5 } };
   assert.equal(votesAsOf([o], T + 20 * MIN, ids, COLLECT.gapMs.berriz)[0], 5);
@@ -120,12 +112,26 @@ test("합산: 멜론 20초 + 베리즈 10분 간격이어도 보류하지 않고
   assert.equal(p.trend2.totals.length, CANDIDATES.length);
 });
 
-test("변동 기준: 두 방식 모두 오늘 00시 / 전날 마감의 같은 방식 순위와 비교", async () => {
-  const { getPayload } = await import("../site/core/mockApi.js");
-  const p = getPayload(Date.now());
-  assert.ok(p.live.compare && p.live.compare.ranks && p.live.compare.ranks2);
-  const s = p.snapshots.find(x => x.prevRanks);
-  assert.ok(s && s.prevRanks2 && Object.keys(s.prevRanks2).length === CANDIDATES.length);
+test("최종 결과: 저장된 날짜별 기록으로 계산, 멜론 마감값과 베리즈 마지막 집계(21:40)를 보류 없이 합산", async () => {
+  // 브라우저 fetch 대신 site/ 폴더의 파일을 읽는다
+  globalThis.fetch = async u => {
+    try { const t = readFileSync(new URL("../site" + u, import.meta.url), "utf8"); return { ok: true, json: async () => JSON.parse(t) }; }
+    catch (e) { return { ok: false, status: 404 }; }
+  };
+  const remote = await import("../site/remote.js");
+  assert.equal(remote.DAYS.length, 15);
+  assert.deepEqual([remote.DAYS[0], remote.DAYS[14]], ["2026-10-30", "2026-11-13"]);
+  const first = await remote.loadRemote();
+  assert.ok(first.live && !first.live.held && first.live.rows.length === N);
+  const p = await remote.takeLateBuild();
+  assert.equal(p.sites.melon.latest.totalVotes, 3664867);          // 마감 직후 20초 뒤 굳은 값
+  assert.equal(p.sites.berriz.latest.sourceAt, Date.parse("2026-11-13T21:40:00+09:00"));
+  assert.ok(!p.live.held && !p.sites.berriz.stale);
+  assert.ok(p.live.compare && p.live.compare.ranks && p.live.compare.ranks2);  // 마지막 날 00시 대비
+  // 00시 마감 기록: 10/31 ~ 11/13 중 11/11·11/12 는 자정 전후 베리즈 수집이 비어 없다(값을 지어내지 않음)
+  const day = t => new Date(t + 9 * 3600e3).toISOString().slice(5, 10);
+  assert.equal(p.snapshots.map(s => day(s.at)).join(" "), "10-31 11-01 11-02 11-03 11-04 11-05 11-06 11-07 11-08 11-09 11-10 11-13");
+  assert.ok(p.trend.t.length > 1000 && p.trend2.t.length === p.trend.t.length);
 });
 
 test("점수 차 표시: 근소한 차이는 소수 셋째 자리, 같으면 동점", () => {
